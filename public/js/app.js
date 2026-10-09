@@ -198,10 +198,10 @@
         <div class="kicker">${kicker}</div>
         <h2 class="serif">${esc(sec.titulo)}</h2>
         <p>${esc(sec.intro)}</p>
+        <ul class="points">${sec.puntos.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
       </div>
       <div class="formula">${FORMULAS[id] ? FORMULAS[id]() : esc(sec.formula)}<small>${esc(sec.nota || "Comparar siempre: actual, presupuesto y año anterior")}</small></div>
-    </div>
-    <ul class="points">${sec.puntos.map(p => `<li>${esc(p)}</li>`).join("")}</ul>`;
+    </div>`;
   }
   function insightsCard(items, title = "Lectura ejecutiva", wide = false) {
     return `<div class="card"><div class="card-title">${title}</div><div class="card-sub">Qué dicen los números y dónde actuar</div>
@@ -1085,7 +1085,7 @@
       <div class="card"><div class="card-title">Indicadores clave de rentabilidad</div>
         <div class="card-sub">${esc(outletNombre())} · ${periodoNombre()} · Rangos orientativos para A&amp;B de hotel (editables en <code>REFERENCIAS</code>, archivo data.js)</div>
         <div class="table-scroll"><table class="sem-table"><thead><tr><th>Indicador</th><th>Fórmula</th><th>Resultado</th><th>Referencia sana</th><th>Estado</th><th>Qué hacer para mejorarlo</th></tr></thead><tbody>
-          ${ind.map(x => `<tr><td><button class="link" data-go="${x.go}">${x.n}</button></td><td class="f"><span class="math">${x.formula}</span></td><td class="n"><b>${x.f(x.val)}</b></td><td class="n">${refTxt(x.ref)}</td>
+          ${ind.map(x => `<tr class="st-${x.estado}"><td><button class="link" data-go="${x.go}">${x.n}</button></td><td class="f"><span class="math">${x.formula}</span></td><td class="n"><b>${x.f(x.val)}</b></td><td class="n">${refTxt(x.ref)}</td>
             <td><span class="pill ${x.estado === "ok" ? "ok" : x.estado === "warn" ? "warn" : "bad"}">${ESTADO_TXT[x.estado]}</span></td><td class="txt">${x.accion}</td></tr>`).join("")}
         </tbody></table></div>
         <p class="legend-note">Verde: sano · ámbar: vigilar (entre el rango sano y el límite) · rojo: actuar. Los rangos varían según categoría del hotel, concepto y mercado; úsalos como punto de partida.</p>
@@ -1144,14 +1144,23 @@
   const num = (v) => { const x = parseFloat(String(v).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
   const setHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
 
+  /* Precio vinculado a la meta: Precio = Costo por porción ÷ Meta de costo */
+  function aplicarMeta(pk) {
+    const p = SIM.st.productos[pk], cr = costoReceta(p);
+    if (!(p.metaCosto > 0)) return;
+    p.precioNeto = Math.round((cr / (p.metaCosto / 100)) * 100) / 100;
+    const el = document.querySelector(`#sim-root input[data-prod="${pk}"][data-f="precioNeto"]`);
+    if (el && document.activeElement !== el) el.value = p.precioNeto;
+  }
+
   function recipeRows(pk) {
     const p = SIM.st.productos[pk];
     const inp = (i, f, v, type = "number") => `<input type="${type}" ${type === "number" ? 'step="any" min="0" inputmode="decimal"' : ""} data-prod="${pk}" data-ing="${i}" data-f="${f}" value="${esc(String(v))}" aria-label="${f}">`;
-    return p.ingredientes.map((g, i) => `<tr class="${i === p.volatil ? "vol" : ""}">
-      <td class="ing">${inp(i, "n", g.n, "text")}${i === p.volatil ? `<small class="live">● precio de mercado en vivo</small>` : ""}</td>
+    return p.ingredientes.map((g, i) => `<tr id="sim-row-${pk}-${i}" class="${i === p.volatil ? "vol" : ""}">
+      <td class="ing"><span class="star" title="Insumo de mayor costo">★</span>${inp(i, "n", g.n, "text")}${i === p.volatil ? `<small class="live">● precio de mercado en vivo</small>` : ""}</td>
       <td>${inp(i, "cant", g.cant)}</td><td class="und">${inp(i, "und", g.und, "text")}</td>
       <td><span class="in"><i>US$</i>${inp(i, "precio", g.precio)}</span></td><td><span class="in">${inp(i, "merma", g.merma)}<i>%</i></span></td>
-      <td class="c" id="sim-ic-${pk}-${i}"></td>
+      <td class="c" id="sim-ic-${pk}-${i}"></td><td class="part" id="sim-ip-${pk}-${i}"></td>
       <td><button class="sim-del" data-sim="del" data-prod="${pk}" data-i="${i}" title="Quitar insumo" aria-label="Quitar insumo">×</button></td></tr>`).join("");
   }
 
@@ -1166,9 +1175,10 @@
         <div class="sim-prod-head"><span class="sim-tag ${pk}">${p.tipo}</span><input class="sim-name" type="text" data-prod="${pk}" data-f="nombre" value="${esc(p.nombre)}" aria-label="Nombre del producto"></div>
         <div class="card-sub">${esc(p.descripcion)}</div>
         <h4 class="sim-h">1 · Receta estándar (1 porción)</h4>
-        <div class="table-scroll"><table class="sim-rec"><thead><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th><th>Precio de compra por unidad</th><th>Merma</th><th>Costo</th><th></th></tr></thead>
+        <div class="table-scroll"><table class="sim-rec"><thead><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th><th>Precio de compra por unidad</th><th>Merma</th><th>Costo</th><th>Participación en el costo</th><th></th></tr></thead>
           <tbody id="sim-rec-${pk}">${recipeRows(pk)}</tbody>
-          <tfoot><tr><td colspan="5">Costo de la receta por porción</td><td class="c" id="sim-cr-${pk}"></td><td></td></tr></tfoot></table></div>
+          <tfoot><tr><td colspan="5">Costo de la receta por porción</td><td class="c" id="sim-cr-${pk}"></td><td class="part">100 %</td><td></td></tr></tfoot></table></div>
+        <div class="sim-top" id="sim-top-${pk}"></div>
         <button class="sim-btn ghost small" data-sim="add" data-prod="${pk}">+ Agregar insumo</button>
         <p class="legend-note">${eq("Costo del insumo", `${frac("Cantidad × Precio de compra", "1 − Merma")}`)}</p>
         <h4 class="sim-h">2 · Precio de venta</h4>
@@ -1177,6 +1187,7 @@
           ${field(pk, "metaCosto", `Meta de ${pk === "plato" ? "food" : "beverage"} cost`, "", "%", "1")}
           ${field(pk, "unidadesMes", `${p.unidad[0].toUpperCase() + p.unidad.slice(1)} vendidos al mes`, "", "", "10")}
         </div>
+        <div class="sim-link" id="sim-link-${pk}"></div>
         <div class="sim-kpis" id="sim-kpis-${pk}"></div>
         <div class="sim-client" id="sim-client-${pk}"></div>
       </div>`;
@@ -1227,19 +1238,19 @@
 
   function simPnlTabla(r) {
     const lineas = [
-      ["Ventas netas (unidades × precio neto)", "ventas", false, true],
-      ["(−) Costo de la receta estándar", "base"], ["(−) Desvío por precio de insumos", "dPrecio"], ["(−) Sobreporción", "dSobre"], ["(−) Mermas no controladas", "dMerma"],
-      ["(=) Margen bruto de contribución", "mb", true], ["(−) Planilla asignada", "planilla"], ["(−) Otros gastos operativos", "otros"],
-      ["(=) GOP del producto", "gop", true], ["(−) Gastos no distribuidos", "nd"], ["(=) Utilidad del producto (EBITDA)", "util", true, true]
+      ["Ventas netas (unidades × precio neto)", "ventas", "venta"],
+      ["(−) Costo de la receta estándar", "base", "costo"], ["(−) Desvío por precio de insumos", "dPrecio", "desvio"], ["(−) Sobreporción", "dSobre", "desvio"], ["(−) Mermas no controladas", "dMerma", "desvio"],
+      ["(=) Margen bruto de contribución", "mb", "sub"], ["(−) Planilla asignada", "planilla", "gasto"], ["(−) Otros gastos operativos", "otros", "gasto"],
+      ["(=) GOP del producto", "gop", "sub"], ["(−) Gastos no distribuidos", "nd", "gasto"], ["(=) Utilidad del producto (EBITDA)", "util", "util"]
     ];
     const tot = sumarPnl(r.plato, r.bebida);
     const cel = (x, k, pu) => { const v = x[k], u = pu ? v / (x.unidades || 1) : v; return `<td class="${v < 0 ? "neg" : ""}">${pu ? fmtDec(u, 2) : fmtMoney(v)}</td>`; };
     const pct = (x, k) => `<td class="p">${x.ventas ? fmtPct((x[k] / x.ventas) * 100) : "—"}</td>`;
     const P = SIM.st.productos;
     return `<table class="sim-pl"><thead>
-      <tr><th rowspan="2">Concepto</th><th colspan="3">${esc(P.plato.nombre)}</th><th colspan="3">${esc(P.bebida.nombre)}</th><th colspan="2">Total</th></tr>
-      <tr><th>Por plato</th><th>${fmtInt(r.plato.unidades)} platos</th><th>% venta</th><th>Por bebida</th><th>${fmtInt(r.bebida.unidades)} bebidas</th><th>% venta</th><th>US$</th><th>% venta</th></tr></thead><tbody>
-      ${lineas.map(([n, k, sub, key]) => `<tr class="${sub ? "sub" : ""} ${key ? "key" : ""}"><td>${n}</td>${cel(r.plato, k, true)}${cel(r.plato, k)}${pct(r.plato, k)}${cel(r.bebida, k, true)}${cel(r.bebida, k)}${pct(r.bebida, k)}${cel(tot, k)}${pct(tot, k)}</tr>`).join("")}
+      <tr><th rowspan="2">Concepto</th><th colspan="3" class="g-plato">${esc(P.plato.nombre)}</th><th colspan="3" class="g-bebida">${esc(P.bebida.nombre)}</th><th colspan="2" class="g-total">Total</th></tr>
+      <tr><th class="g-plato">Por plato</th><th class="g-plato">${fmtInt(r.plato.unidades)} platos</th><th class="g-plato">% venta</th><th class="g-bebida">Por bebida</th><th class="g-bebida">${fmtInt(r.bebida.unidades)} bebidas</th><th class="g-bebida">% venta</th><th class="g-total">US$</th><th class="g-total">% venta</th></tr></thead><tbody>
+      ${lineas.map(([n, k, tipo]) => `<tr class="l-${tipo} ${k === "util" && tot.util < 0 ? "loss" : ""}"><td>${n}</td>${cel(r.plato, k, true)}${cel(r.plato, k)}${pct(r.plato, k)}${cel(r.bebida, k, true)}${cel(r.bebida, k)}${pct(r.bebida, k)}${cel(tot, k)}${pct(tot, k)}</tr>`).join("")}
     </tbody></table>`;
   }
 
@@ -1286,6 +1297,7 @@
   }
 
   function simLive() {
+    if (!SIM.st || !document.getElementById("sim-root")) return;
     const P = SIM.st, d = SIM.dia;
     const bar = document.getElementById("sim-bar"); if (bar) bar.style.width = `${(d / DIAS_SIM) * 100}%`;
     const btn = document.getElementById("sim-play");
@@ -1316,17 +1328,29 @@
   }
 
   function simUpdate() {
-    if (!document.getElementById("sim-root")) return;
+    if (!SIM.st || !document.getElementById("sim-root")) return;
     const P = SIM.st, live = SIM.dia > 0, r = {};
     PK.forEach(pk => {
       const p = P.productos[pk], cr = costoReceta(p);
-      p.ingredientes.forEach((g, i) => setHTML(`sim-ic-${pk}-${i}`, fmtDec(costoIng(g), 2)));
+      const costos = p.ingredientes.map(costoIng), totalIng = sum(costos);
+      const top = costos.length ? costos.indexOf(Math.max(...costos)) : -1;
+      p.ingredientes.forEach((g, i) => {
+        const part = totalIng ? (costos[i] / totalIng) * 100 : 0;
+        setHTML(`sim-ic-${pk}-${i}`, fmtDec(costos[i], 2));
+        setHTML(`sim-ip-${pk}-${i}`, `<span class="bar"><span style="width:${Math.min(100, part)}%"></span></span><b>${fmtPct(part, 0)}</b>`);
+        document.getElementById(`sim-row-${pk}-${i}`)?.classList.toggle("top", i === top && totalIng > 0);
+      });
+      const gTop = p.ingredientes[top];
+      setHTML(`sim-top-${pk}`, gTop && totalIng ? `<span class="star">★</span> <b>${esc(gTop.n)}</b> concentra el <b>${fmtPct((costos[top] / totalIng) * 100, 0)}</b> del costo de la receta: es el insumo a negociar, porcionar y controlar primero. Una variación de 10 % en su precio mueve el costo por porción en ${fmtDec((costos[top] * 0.1) / (Number(p.porciones) || 1), 2)}.` : "");
       setHTML(`sim-cr-${pk}`, `<b>${fmtDec(cr, 2)}</b>`);
       if (live && p.ingredientes[p.volatil]) {
         const el = document.querySelector(`#sim-root input[data-prod="${pk}"][data-ing="${p.volatil}"][data-f="precio"]`);
         if (el && document.activeElement !== el) el.value = p.ingredientes[p.volatil].precio;
       }
       const cp = p.precioNeto ? (cr / p.precioNeto) * 100 : 0, sug = p.metaCosto ? cr / (p.metaCosto / 100) : 0, mc = p.precioNeto - cr;
+      setHTML(`sim-link-${pk}`, p.vinculado
+        ? `<span class="on">🔗 Precio vinculado a la meta</span> ${eq("Precio", frac("Costo por porción", "Meta"), frac(fmtDec(cr, 2), fmtPct(p.metaCosto, 1)), resPill(fmtDec(sug, 2)))}<small>Cambia la meta o un insumo y todo se recalcula. Escribe un precio a mano para fijarlo.</small>`
+        : `<span>Precio fijado manualmente</span> <small>Con la meta de ${fmtPct(p.metaCosto, 1)} el precio sería ${fmtDec(sug, 2)}.</small> <button class="sim-btn small" data-sim="link" data-prod="${pk}">Calcular precio con la meta</button>`);
       const ok = cp <= p.metaCosto;
       setHTML(`sim-kpis-${pk}`, `
         <div><span>Costo por porción</span><b>${fmtDec(cr, 2)}</b></div>
@@ -1347,7 +1371,7 @@
   }
 
   function simTick() {
-    if (SIM.dia >= DIAS_SIM) { simPause(); return; }
+    if (!SIM.st || !document.getElementById("sim-root") || SIM.dia >= DIAS_SIM) { simPause(); return; }
     SIM.dia += 1;
     const finde = [6, 0].includes(SIM.dia % 7);
     PK.forEach(pk => {
@@ -1385,27 +1409,43 @@
     const root = document.getElementById("sim-root"); if (!root) return;
     const c = C();
     root.addEventListener("input", (e) => {
+      simInit();
       const t = e.target, P = SIM.st;
       if (t.dataset.sens) { SIM.sens[t.dataset.sens] = num(t.value); setHTML(`sim-sv-${t.dataset.sens}`, `${SIM.sens[t.dataset.sens]} %`); }
       else if (t.dataset.par) P[t.dataset.par] = num(t.value);
       else if (t.dataset.prod) {
-        const p = P.productos[t.dataset.prod];
-        if (t.dataset.ing !== undefined) { const g = p.ingredientes[Number(t.dataset.ing)]; g[t.dataset.f] = ["n", "und"].includes(t.dataset.f) ? t.value : num(t.value); }
-        else p[t.dataset.f] = t.dataset.f === "nombre" ? t.value : num(t.value);
+        const pk = t.dataset.prod, p = P.productos[pk], f = t.dataset.f;
+        if (t.dataset.ing !== undefined) {
+          const g = p.ingredientes[Number(t.dataset.ing)]; g[f] = ["n", "und"].includes(f) ? t.value : num(t.value);
+          if (p.vinculado && !["n", "und"].includes(f)) aplicarMeta(pk);
+        } else {
+          p[f] = f === "nombre" ? t.value : num(t.value);
+          if (f === "metaCosto") { p.vinculado = true; aplicarMeta(pk); }
+          if (f === "precioNeto") p.vinculado = false;
+        }
       } else return;
       simUpdate();
     });
     root.addEventListener("click", (e) => {
       const b = e.target.closest("[data-sim]"); if (!b) return;
+      simInit();
       const a = b.dataset.sim, pk = b.dataset.prod;
       if (a === "play") simPlay();
       if (a === "reset") simReset();
-      if (a === "restore") { simPause(); SIM.st = null; SIM.sens = { costo: 0, sobre: 0, merma: 0 }; SIM.dia = 0; SIM.acum = {}; SIM.serie = { plato: [], bebida: [] }; SIM.feed = []; SIM.base = {}; render(); return; }
+      if (a === "restore") {
+        simPause();
+        SIM.st = JSON.parse(JSON.stringify(SIMULACION));
+        SIM.sens = { costo: 0, sobre: 0, merma: 0 }; SIM.dia = 0; SIM.acum = {}; SIM.serie = { plato: [], bebida: [] }; SIM.feed = []; SIM.base = {};
+        render();
+        return;
+      }
+      if (a === "link") { SIM.st.productos[pk].vinculado = true; aplicarMeta(pk); simUpdate(); }
       if (a === "add") { SIM.st.productos[pk].ingredientes.push({ n: "Nuevo insumo", cant: 0, und: "kg", precio: 0, merma: 0 }); setHTML(`sim-rec-${pk}`, recipeRows(pk)); simUpdate(); }
       if (a === "del") {
         const p = SIM.st.productos[pk], i = Number(b.dataset.i);
         p.ingredientes.splice(i, 1);
         if (i === p.volatil) p.volatil = -1; else if (i < p.volatil) p.volatil -= 1;
+        if (p.vinculado) aplicarMeta(pk);
         setHTML(`sim-rec-${pk}`, recipeRows(pk)); simUpdate();
       }
     });
@@ -1526,7 +1566,10 @@
   }
 
   function render() {
-    if (viewCleanup) { viewCleanup(); viewCleanup = null; }
+    if (viewCleanup) {
+      const fin = viewCleanup; viewCleanup = null;
+      try { fin(); } catch (err) { console.error(err); }
+    }
     destroyCharts();
     const v = VIEWS[state.view] || VIEWS.portada;
     document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.go === state.view));
