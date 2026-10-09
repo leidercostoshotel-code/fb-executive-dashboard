@@ -39,6 +39,18 @@ body.auth-ready #auth-splash { display: none; }
 .lg-brand .div { font-size: 12px; color: var(--text-3); font-weight: 500; margin-top: 2px; }
 
 .lg-form-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 36px 0 24px; }
+/* Director: foto circular con aro dorado */
+.lg-director { display: flex; align-items: center; gap: 18px; margin: 0 0 28px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+.lg-director .ph {
+  flex: none; width: 92px; height: 92px; border-radius: 50%; padding: 3px;
+  background: linear-gradient(140deg, var(--gold-soft) 0%, var(--gold) 45%, #8a6d12 100%);
+  box-shadow: 0 10px 24px rgba(11,22,38,.16);
+}
+.lg-director .ph img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: 50% 30%; border: 3px solid #fff; background: var(--surface); }
+.lg-director .nm { font-size: 18px; font-weight: 600; color: var(--navy-900); letter-spacing: -.01em; line-height: 1.2; }
+.lg-director .rl { font-size: 13.5px; color: var(--text-2); margin-top: 3px; }
+.lg-director .rl::before { content: ""; display: block; width: 28px; height: 2px; background: var(--gold); border-radius: 2px; margin: 0 0 8px; }
+
 .lg-form-wrap h2 { font-size: 24px; color: var(--navy-900); font-weight: 600; letter-spacing: -.015em; }
 .lg-form-wrap .sub { color: var(--text-3); font-size: 14px; margin: 6px 0 28px; }
 
@@ -184,6 +196,13 @@ body.auth-ready #auth-splash { display: none; }
   .lg-form-col { padding-top: 28px; padding-bottom: 16px; }
   .lg-form-wrap { padding: 20px 0 16px; }
   .lg-form-wrap .sub { margin-bottom: 20px; }
+  .lg-director { margin-bottom: 16px; padding-bottom: 16px; gap: 14px; }
+  .lg-director .ph { width: 68px; height: 68px; }
+  .lg-secure { display: none; }
+  .lg-foot { padding-top: 10px; font-size: 11px; line-height: 1.5; }
+  .lg-foot .powered { margin-top: 4px; }
+  .lg-form-wrap .sub { margin-bottom: 16px; }
+  .lg-field { margin-bottom: 14px; }
 }
 @media (max-width: 900px) {
   #login { grid-template-columns: 1fr; }

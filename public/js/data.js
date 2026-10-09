@@ -8,6 +8,8 @@ const CONFIG = {
   titulo: "El Negocio del Sabor",
   subtitulo: "Del plato al EBITDA",
   autor: "José Montes",
+  cargo: "Director de Alimentos & Bebidas",
+  foto: "img/director.jpg",
   lema: "GESTIÓN  •  RENTABILIDAD  •  RESULTADOS",
   empresa: "Grupo Hotelero Andino · División Alimentos & Bebidas",
   moneda: "US$",
