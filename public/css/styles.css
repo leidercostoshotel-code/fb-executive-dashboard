@@ -267,8 +267,9 @@ code { font-size: .92em; background: #f0f2f6; padding: 1px 5px; border-radius: 4
 .sim-tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: #fff; background: var(--s-actual); white-space: nowrap; }
 .sim-tag.bebida { background: var(--s-aa); }
 .sim-h { font-size: 15px; font-weight: 600; color: var(--text); margin: 18px 0 10px; }
-.sim-rec { font-size: 14px; }
-.sim-rec th { white-space: normal; font-size: 12.5px; text-align: left; }
+.sim-rec { font-size: 14px; width: auto; }
+.sim-rec th { white-space: nowrap; font-size: 11.5px; line-height: 1.3; text-align: center; padding: 7px 10px; vertical-align: middle; }
+.sim-rec th:first-child { text-align: left; }
 /* columnas con color: cantidad/unidad · precio · merma · costo · participación */
 .sim-rec tbody td:nth-child(2), .sim-rec tbody td:nth-child(3) { background: #eef4fc; }
 .sim-rec tbody td:nth-child(4) { background: #fbf5e3; }
@@ -285,23 +286,26 @@ code { font-size: .92em; background: #f0f2f6; padding: 1px 5px; border-radius: 4
 .sim-rec tr.top td:first-child { box-shadow: inset 4px 0 0 var(--gold); }
 .sim-rec tr.top .star { display: inline; }
 .sim-rec tr.top td.c { color: #8a5d00; font-size: 15px; }
-.sim-rec td.part { white-space: nowrap; min-width: 130px; }
-.sim-rec td.part .bar { display: inline-block; width: 70px; height: 7px; border-radius: 4px; background: #e3e8ef; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+.sim-rec td.part { white-space: nowrap; text-align: left; }
+.sim-rec td.part .bar { display: inline-block; width: 60px; height: 7px; border-radius: 4px; background: #e3e8ef; overflow: hidden; vertical-align: middle; margin-right: 8px; }
 .sim-rec td.part .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), #d98a1f); border-radius: 4px; }
 .sim-rec tr.top td.part .bar span { background: linear-gradient(90deg, #d98a1f, var(--bad)); }
 .sim-rec td.part b { font-size: 13px; }
 .sim-top { margin-top: 10px; padding: 10px 14px; border-radius: 8px; background: #fff4d6; border-left: 4px solid var(--gold); font-size: 14px; color: var(--text); line-height: 1.5; }
 .sim-top:empty { display: none; }
 .sim-top .star { color: #c99a06; font-size: 16px; }
-.sim-rec td { padding: 5px 6px; text-align: left; vertical-align: middle; }
-.sim-rec td input { border: 1px solid #dde2ea; border-radius: 5px; padding: 5px 6px; font: inherit; font-size: 14px; width: 72px; background: #fff; font-variant-numeric: tabular-nums; }
+.sim-rec td { padding: 5px 8px; text-align: center; vertical-align: middle; }
+.sim-rec td.ing { text-align: left; }
+.sim-rec td input { border: 1px solid #dde2ea; border-radius: 5px; padding: 5px 6px; font: inherit; font-size: 14px; width: 64px; text-align: center; background: #fff; font-variant-numeric: tabular-nums; }
 .sim-rec td .in { border: 0; padding: 0; background: none; box-shadow: none; }
-.sim-rec td .in input { width: 66px; padding: 5px 6px; border: 1px solid #dde2ea; }
-.sim-rec td.ing input { width: 190px; }
-.sim-rec td.und input { width: 66px; }
-.sim-rec td.c { text-align: right; font-weight: 600; white-space: nowrap; }
+.sim-rec td .in input { width: 60px; padding: 5px 6px; border: 1px solid #dde2ea; }
+.sim-rec td.ing input { width: 230px; text-align: left; }
+.sim-rec tbody td:nth-child(2) input { width: 74px; }
+.sim-rec td.und input { width: 70px; }
+.sim-rec td.c { text-align: center; font-weight: 600; white-space: nowrap; }
 .sim-rec tr.vol td.ing input { border-color: var(--gold); background: #fffaf0; }
 .sim-rec small.live { display: block; color: #8a6d12; font-size: 11.5px; margin-top: 2px; }
+.sim-rec tfoot td:first-child { text-align: left; }
 .sim-rec tfoot td { font-weight: 700; border-top: 2px solid var(--gold); background: var(--navy-800); color: #fff; }
 .sim-rec tfoot td.c { color: var(--gold-soft); font-size: 15.5px; }
 .sim-del { border: 0; background: none; color: var(--text-3); font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 5px; }

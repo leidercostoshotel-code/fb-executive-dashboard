@@ -1182,7 +1182,7 @@
         <div class="sim-prod-head"><span class="sim-tag ${pk}">${p.tipo}</span><input class="sim-name" type="text" data-prod="${pk}" data-f="nombre" value="${esc(p.nombre)}" aria-label="Nombre del producto"></div>
         <div class="card-sub">${esc(p.descripcion)}</div>
         <h4 class="sim-h">1 · Receta estándar (1 porción)</h4>
-        <div class="table-scroll"><table class="sim-rec"><thead><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th><th>Precio de compra por unidad</th><th>Merma</th><th>Costo</th><th>Participación en el costo</th><th></th></tr></thead>
+        <div class="table-scroll"><table class="sim-rec"><thead><tr><th>Insumo</th><th>Cantidad<br>por porción</th><th>Unidad<br>de medida</th><th>Precio de compra<br>por unidad</th><th>Merma<br>(%)</th><th>Costo<br>por porción</th><th>Participación<br>en el costo</th><th></th></tr></thead>
           <tbody id="sim-rec-${pk}">${recipeRows(pk)}</tbody>
           <tfoot><tr><td colspan="5">Costo de la receta por porción</td><td class="c" id="sim-cr-${pk}"></td><td class="part">100 %</td><td></td></tr></tfoot></table></div>
         <div class="sim-top" id="sim-top-${pk}"></div>
