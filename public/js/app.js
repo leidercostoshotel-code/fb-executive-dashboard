@@ -1571,6 +1571,7 @@
     window.addEventListener("popstate", () => { const h = (location.hash || "").replace("#/", ""); state.view = VIEWS[h] ? h : "portada"; render(); });
     window.addEventListener("keydown", (e) => {
       if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // no interferir con atajos del navegador (Ctrl+F, etc.)
       if (e.key === "ArrowRight" || e.key === "PageDown") step(1);
       if (e.key === "ArrowLeft" || e.key === "PageUp") step(-1);
       // Enter: siguiente hoja · Shift + Enter: hoja anterior (sin interferir con botones o enlaces enfocados con Tab)
@@ -1590,6 +1591,7 @@
       if (!started) { started = true; init(); }
       const who = document.getElementById("user-email");
       if (who) { who.textContent = user?.email || ""; who.title = user?.email || ""; }
+      if (window.marcaDeAgua) window.marcaDeAgua(user?.email);
     }
   };
 })();

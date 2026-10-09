@@ -429,9 +429,22 @@ table.pl tr.sub td { font-weight: 700; background: #f7f8fb; border-top: 1px soli
   .section-head h2 { font-size: 28px; }
   .tile .value, .tile.hero .value, .kpi-mini .value { white-space: normal; }
 }
+/* ---------- Protección: sin selección, sin impresión, marca de agua ---------- */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
+img, canvas, svg { -webkit-user-drag: none; }
+#marca-agua { position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .05; background-repeat: repeat; }
+#aviso-proteccion {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); z-index: 100; opacity: 0; pointer-events: none;
+  background: var(--navy-900); color: #fff; font-size: 14px; font-weight: 500; padding: 11px 18px; border-radius: 10px;
+  border-left: 4px solid var(--gold); box-shadow: 0 10px 30px rgba(0,0,0,.25); transition: opacity .2s, transform .2s; max-width: calc(100% - 32px);
+}
+#aviso-proteccion.on { opacity: 1; transform: translate(-50%, 0); }
 @media print {
-  .sidebar, .topbar { display: none; }
-  #app { grid-template-columns: 1fr; }
-  .card { box-shadow: none; break-inside: avoid; }
-  .calc-detail { display: block; }
+  html, body { background: #fff !important; }
+  body > * { display: none !important; }
+  body::before {
+    content: "Documento confidencial · La impresión y la descarga de este dashboard están deshabilitadas.";
+    display: block; padding: 48px; font: 600 20px "IBM Plex Sans", Arial, sans-serif; color: #0b1626;
+  }
 }

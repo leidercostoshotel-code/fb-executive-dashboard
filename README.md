@@ -12,7 +12,7 @@ fb-executive-dashboard/
 └── public/
     ├── index.html         # Solo carga CSS, Chart.js y los scripts
     ├── favicon.svg        # Ícono de la pestaña
-    ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive e impresión
+    ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive y protección de impresión
     ├── css/login.css      # Pantalla de acceso y panel animado
     └── js/
         ├── data.js        # Datos simulados: outlets, meses, GSI, seguridad, textos
@@ -45,6 +45,12 @@ La sección 04 incluye **Food Cost % y Beverage Cost %** por separado, con su f�
 Cada KPI muestra **Actual | Presupuesto | Año anterior**, su fórmula, gráficos mensuales, lectura ejecutiva y tabla de detalle.
 
 Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula en notación matemática y la definición de cada variable, (2) la sustitución con los datos reales del outlet y periodo seleccionados para Actual, Presupuesto y Año anterior, (3) las variaciones con su fórmula (% o puntos porcentuales), una nota metodológica y el cálculo detallado (mes a mes, por outlet o estado de resultados Ventas → GOP → EBITDA).
+
+## Confidencialidad
+
+`public/js/proteccion.js` bloquea las vías habituales de impresión y descarga: Ctrl/Cmd + P, S y U, el menú contextual (clic derecho), copiar/cortar y arrastrar (salvo en los campos editables). La impresión desde el menú del navegador o "Guardar como PDF" solo muestra un aviso de confidencialidad. Además, se superpone una marca de agua tenue con el correo del usuario conectado y la fecha.
+
+Ninguna página web puede impedir al 100 % una captura de pantalla o el uso de las herramientas de desarrollador; la marca de agua permite identificar de quién proviene cualquier copia.
 
 ## Uso durante la exposición
 
