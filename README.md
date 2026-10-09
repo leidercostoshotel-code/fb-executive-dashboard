@@ -40,9 +40,12 @@ El dashboard solo se muestra después de iniciar sesión con **Firebase Authenti
 
 Cada KPI muestra **Actual | Presupuesto | Año anterior**, su fórmula, gráficos mensuales, lectura ejecutiva y tabla de detalle.
 
+Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula en notación matemática y la definición de cada variable, (2) la sustitución con los datos reales del outlet y periodo seleccionados para Actual, Presupuesto y Año anterior, (3) las variaciones con su fórmula (% o puntos porcentuales), una nota metodológica y el cálculo detallado (mes a mes, por outlet o estado de resultados Ventas → GOP → EBITDA).
+
 ## Uso durante la exposición
 
 - Flechas `←` `→` (o PageUp/PageDown) para avanzar entre secciones; `Home` vuelve a la portada.
+- `M` o el botón ☰ oculta/muestra el menú lateral para usar todo el ancho de la pantalla (se recuerda en el navegador).
 - `F` o el botón ⛶ activa el modo presentación (pantalla completa).
 - Filtros de **Outlet** (Consolidado, Restaurante, Bar, Room Service, Banquetes) y **Periodo** (YTD o un mes).
 - Cada sección tiene URL propia (`#/ventas`, `#/ebitda`, ...) para abrirla directamente.
