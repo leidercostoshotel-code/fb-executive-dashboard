@@ -86,7 +86,7 @@
   /* ---------------- Chart.js: defaults ejecutivos ---------------- */
   function setupCharts() {
     if (!window.Chart) return;
-    Chart.defaults.font.family = '"Inter", system-ui, sans-serif';
+    Chart.defaults.font.family = '"IBM Plex Sans", system-ui, sans-serif';
     Chart.defaults.font.size = 12;
     Chart.defaults.color = CSS("--text-3");
     Chart.defaults.plugins.legend.position = "bottom";
