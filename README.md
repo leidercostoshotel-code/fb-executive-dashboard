@@ -8,13 +8,14 @@ HTML mínimo (18 líneas) + CSS + JavaScript puro + Chart.js (CDN). **Todos los 
 ```
 fb-executive-dashboard/
 ├── firebase.json          # Configuración de Firebase Hosting
-├── .firebaserc            # Reemplazar "TU-PROYECTO-FIREBASE" por el ID real
+├── .firebaserc            # Proyecto de Firebase: fb-executive-dashboard
 └── public/
     ├── index.html         # 18 líneas: solo carga CSS, Chart.js y los dos scripts
     ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive e impresión
     └── js/
         ├── data.js        # Datos simulados: outlets, meses, GSI, seguridad, textos
-        └── app.js         # Render del dashboard, navegación, filtros y gráficos
+        ├── app.js         # Render del dashboard, navegación, filtros y gráficos
+        └── firebase.js    # Configuración e inicialización del SDK web de Firebase
 ```
 
 ## Secciones
