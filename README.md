@@ -37,6 +37,7 @@ El dashboard solo se muestra después de iniciar sesión con **Firebase Authenti
 3. 01 Ventas · 02 Covers · 03 Average Check · 04 F&B Cost · 05 GOP · 06 EBITDA
 4. Resultados de GSI (experiencia del cliente)
 5. Seguridad Alimentaria y Sostenibilidad
+7. **Simulación** (botón dorado al final del menú): receta estándar de un plato y una bebida para un hotel 5 estrellas (insumos, cantidades, precios de compra y mermas editables), precio de venta neto, precio sugerido según la meta de costo y precio al cliente final con impuesto y servicio; simulación en tiempo real de un mes (ventas diarias y precio de mercado del insumo principal); estado de resultados por producto de la venta a la utilidad, cascada por unidad y panel "¿Por qué cuidar los costos?" (alza de insumos, sobreporción y mermas). Recetas y parámetros base en `SIMULACION` dentro de `data.js`.
 6. Semáforo de rentabilidad: food cost, beverage cost, prime cost, márgenes, mermas, GSI e inocuidad frente a rangos de referencia (editables en `REFERENCIAS`, `data.js`)
 
 La sección 04 incluye **Food Cost % y Beverage Cost %** por separado, con su fórmula, sustitución y relación con el costo A&B total (promedio ponderado por el mix de venta).
