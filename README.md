@@ -10,13 +10,25 @@ fb-executive-dashboard/
 ├── firebase.json          # Configuración de Firebase Hosting
 ├── .firebaserc            # Proyecto de Firebase: fb-executive-dashboard
 └── public/
-    ├── index.html         # 18 líneas: solo carga CSS, Chart.js y los dos scripts
+    ├── index.html         # Solo carga CSS, Chart.js y los scripts
+    ├── favicon.svg        # Ícono de la pestaña
     ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive e impresión
+    ├── css/login.css      # Pantalla de acceso y panel animado
     └── js/
         ├── data.js        # Datos simulados: outlets, meses, GSI, seguridad, textos
         ├── app.js         # Render del dashboard, navegación, filtros y gráficos
-        └── firebase.js    # Configuración e inicialización del SDK web de Firebase
+        ├── firebase.js    # Configuración e inicialización del SDK web de Firebase
+        └── auth.js        # Login con Firebase Authentication + panel "centro de control" animado
 ```
+
+## Acceso (login)
+
+El dashboard solo se muestra después de iniciar sesión con **Firebase Authentication** (correo y contraseña).
+
+1. En la consola de Firebase → **Authentication** → **Sign-in method**, habilita **Correo electrónico/contraseña**.
+2. En **Authentication** → **Users** → **Agregar usuario**, crea el correo y la contraseña de cada persona autorizada (no hay registro público).
+3. "¿Olvidaste tu contraseña?" envía el enlace de restablecimiento al correo escrito.
+4. "Recordarme" mantiene la sesión al cerrar el navegador; sin marcarlo, se cierra al cerrar la pestaña.
 
 ## Secciones
 
