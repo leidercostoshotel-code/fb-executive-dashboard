@@ -10,6 +10,8 @@ const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 const empresa = (typeof CONFIG !== "undefined" ? CONFIG.empresa : "Grupo Hotelero").split("·")[0].trim();
 const moneda = typeof CONFIG !== "undefined" ? CONFIG.moneda : "US$";
 const anio = typeof CONFIG !== "undefined" ? CONFIG.anio : new Date().getFullYear();
+const director = typeof CONFIG !== "undefined" && CONFIG.foto ? { nombre: CONFIG.autor, cargo: CONFIG.cargo || "", foto: CONFIG.foto } : null;
+const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const BASE = (typeof OUTLETS !== "undefined" ? OUTLETS : [
   { nombre: "Restaurante Principal", ventaBase: 185000, costoPct: .31, planillaPct: .27, otrosPct: .09 },
   { nombre: "Bar & Lounge", ventaBase: 72000, costoPct: .24, planillaPct: .25, otrosPct: .10 },
@@ -49,6 +51,10 @@ function mount() {
     <section class="lg-form-col">
       <div class="lg-brand">${ICO.logo}<div><div class="name">${empresa}</div><div class="div">División Alimentos &amp; Bebidas</div></div></div>
       <div class="lg-form-wrap">
+        ${director ? `<figure class="lg-director">
+          <div class="ph"><img src="${escHtml(director.foto)}" alt="${escHtml(director.nombre)}" width="92" height="92"></div>
+          <figcaption><div class="nm">${escHtml(director.nombre)}</div><div class="rl">${escHtml(director.cargo)}</div></figcaption>
+        </figure>` : ""}
         <h2>Iniciar sesión</h2>
         <p class="sub">Acceso exclusivo para el equipo directivo autorizado.</p>
         <form id="lg-form" novalidate>
