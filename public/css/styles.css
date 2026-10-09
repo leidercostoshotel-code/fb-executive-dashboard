@@ -200,6 +200,22 @@ details summary::before { content: "▸"; color: var(--gold); transition: transf
 details[open] summary::before { transform: rotate(90deg); }
 details .table-scroll { margin-top: 14px; overflow-x: auto; }
 
+/* ---------- Subsección y semáforo de rentabilidad ---------- */
+.section-sub { margin-top: 10px; padding-top: 22px; border-top: 2px solid var(--line); }
+.section-sub h3 { font-size: 24px; font-weight: 600; color: var(--navy-900); letter-spacing: -.01em; }
+.section-sub p { margin: 6px 0 0; color: var(--text-2); font-size: 15.5px; max-width: 820px; }
+.tile .value .of { font-size: .55em; color: var(--text-3); font-weight: 500; }
+.sem-table td.f { text-align: left; white-space: nowrap; font-size: 14px; color: var(--text-2); }
+.sem-table td.txt { min-width: 260px; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+.sem-table td { vertical-align: middle; }
+.sem-table th, .sem-table td { text-align: left; }
+.sem-table td.f .math { flex-wrap: nowrap; }
+.sem-table td.n { white-space: nowrap; }
+.sem-table td.txt { white-space: normal; }
+button.link { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--navy-700); cursor: pointer; text-align: left; }
+button.link:hover { color: var(--gold); text-decoration: underline; }
+code { font-size: .92em; background: #f0f2f6; padding: 1px 5px; border-radius: 4px; }
+
 /* ---------- Escenarios de prueba ---------- */
 .scen-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;

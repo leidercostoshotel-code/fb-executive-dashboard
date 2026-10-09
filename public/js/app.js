@@ -17,7 +17,8 @@
     { id: "gop", label: "GOP", num: "05" },
     { id: "ebitda", label: "EBITDA", num: "06" },
     { id: "gsi", label: "Resultados de GSI", group: "Experiencia del cliente" },
-    { id: "seguridad", label: "Seguridad y Sostenibilidad", group: "Responsabilidad operativa" }
+    { id: "seguridad", label: "Seguridad y Sostenibilidad", group: "Responsabilidad operativa" },
+    { id: "semaforo", label: "Semáforo de rentabilidad", group: "Diagnóstico" }
   ];
   const ORDER = NAV.map(n => n.id);
   const CSS = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -324,7 +325,8 @@
     gop: () => eq("<b>GOP</b>", "Ventas − Costo − Planilla − Otros gastos"),
     ebitda: () => eq("<b>Margen EBITDA</b>", `${frac("EBITDA", "Ventas")} × 100`),
     gsi: () => eq("<b>GSI</b>", frac("Σ calificaciones válidas", "N.º de calificaciones")),
-    seguridad: () => eq("<b>Cumplimiento %</b>", `${frac("Controles cumplidos", "Controles programados")} × 100`)
+    seguridad: () => eq("<b>Cumplimiento %</b>", `${frac("Controles cumplidos", "Controles programados")} × 100`),
+    semaforo: () => eq("<b>Prime cost %</b>", `${frac("Costo A&amp;B + Planilla", "Ventas")} × 100`)
   };
 
   function calcVentas() {
@@ -378,6 +380,45 @@
       nota: "Al ser un porcentaje, la variación se expresa en <b>puntos porcentuales (pp)</b>: diferencia simple entre porcentajes. Un costo por debajo del presupuesto es favorable. Cada 1 pp equivale a " + fmtMoney(v.act / 100) + " sobre la venta del periodo.",
       detalle: detalleRatio("costo", "ventas", "Costo", "Ventas", "Costo %", fmtMoney, fmtMoney, (x) => fmtPct(x, 2), 100), detalleTitulo: "Ver cálculo mes a mes"
     });
+  }
+
+  /* Food cost y beverage cost por separado */
+  function foodBevBlock() {
+    const fc = ratioTotal("costoAlim", "ventasAlim", 100), bc = ratioTotal("costoBeb", "ventasBeb", 100), t = ratioTotal("costo", "ventas", 100);
+    const va = totales("ventasAlim"), vb = totales("ventasBeb"), ca = totales("costoAlim"), cb = totales("costoBeb"), v = totales("ventas");
+    const mixA = (va.act / v.act) * 100, mixB = 100 - mixA;
+    const R = REFERENCIAS, c = C();
+    const tileFB = (nombre, x, ref) => tile({ label: `${nombre} · Actual ${CONFIG.anio}`, value: fmtPct(x.act), hero: true, color: c.act,
+      meta: `Presupuesto ${fmtPct(x.ppto)} · ${CONFIG.anioAnterior}: ${fmtPct(x.aa)} · Referencia sana ≤ ${ref.verde} %`,
+      deltas: deltaPill(x.act, x.ppto, "vs presupuesto", { invert: true, pp: true }) + deltaPill(x.act, x.aa, `vs ${CONFIG.anioAnterior}`, { invert: true, pp: true }) });
+    const filas = (cn, vn, x) => escenarios().map(e => ({ label: e.label, color: e.color, expr: `<span class="math">${frac(fmtMoney(cn[e.k]), fmtMoney(vn[e.k]))} × 100</span>`, result: fmtPct(x[e.k], 2) }));
+    const porOutlet = outletIds().map(id => {
+      const o = OUTLETS.find(x => x.id === id), g = (campo) => sum(mesIdx().map(i => SERIES[id][i][campo].act));
+      return [esc(o.nombre), fmtMoney(g("ventasAlim")), fmtPct((g("costoAlim") / g("ventasAlim")) * 100), fmtMoney(g("ventasBeb")), fmtPct((g("costoBeb") / g("ventasBeb")) * 100), fmtPct((g("ventasAlim") / g("ventas")) * 100)];
+    });
+    const calc = calcCard({
+      formula: `${eq("<b>Food Cost %</b>", `${frac("Costo de alimentos", "Ventas de alimentos")} × 100`)}<span class="math-alt">${eq("<b>Beverage Cost %</b>", `${frac("Costo de bebidas", "Ventas de bebidas")} × 100`)}</span>`,
+      vars: [["Costo de alimentos", "Inventario inicial + Compras − Inventario final de alimentos (menos consumos de personal y cortesías, que se registran aparte)."],
+        ["Costo de bebidas", "Igual, con el inventario de bar y bodega."], ["Ventas de alimentos / bebidas", "Ingresos separados por tipo de producto en el sistema de punto de venta."]],
+      rowsTitle: "Food Cost % con los datos del periodo",
+      rows: filas(ca, va, fc),
+      extra: `<h5 class="sub-step">Beverage Cost %</h5>${calcTable(filas(cb, vb, bc))}
+        <h5 class="sub-step">Relación con el costo A&amp;B total (promedio ponderado por el mix de venta)</h5>
+        <div class="check-row">${eq("Costo A&amp;B %", "Food Cost × %mix alimentos + Beverage Cost × %mix bebidas",
+          `${fmtPct(fc.act, 2)} × ${fmtPct(mixA)} + ${fmtPct(bc.act, 2)} × ${fmtPct(mixB)}`, resPill(fmtPct(t.act, 2)))}</div>`,
+      variations: [
+        ...variaciones(fc, (x) => fmtPct(x, 2), { pp: true, invert: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Food cost: variación") })),
+        ...variaciones(bc, (x) => fmtPct(x, 2), { pp: true, invert: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Beverage cost: variación") }))
+      ],
+      nota: `El costo de bebidas suele ser bastante menor que el de alimentos, por eso el costo A&amp;B total depende del <b>mix de venta</b>: si crece la proporción de bebidas, el costo total baja aunque ningún producto cambie de costo. Rangos de referencia orientativos para hotel: food cost ≤ ${R.foodCost.verde} % y beverage cost ≤ ${R.bevCost.verde} %.`,
+      detalle: tablaSimple(["Outlet", "Ventas alimentos", "Food cost %", "Ventas bebidas", "Beverage cost %", "Mix alimentos"], porOutlet,
+        ["Total", fmtMoney(va.act), fmtPct(fc.act), fmtMoney(vb.act), fmtPct(bc.act), fmtPct(mixA)]),
+      detalleTitulo: "Ver food cost y beverage cost por outlet"
+    });
+    return `<div class="section-sub"><h3>Food Cost y Beverage Cost por separado</h3><p>El costo A&amp;B se descompone en alimentos y bebidas: cada uno tiene su propia fórmula, su rango sano y sus palancas de control.</p></div>
+      <div class="grid c2">${tileFB("Food Cost %", fc, R.foodCost)}${tileFB("Beverage Cost %", bc, R.bevCost)}</div>
+      ${calc}
+      ${chartCard("ch-f3", "Food cost y beverage cost por mes", "% de la venta de cada línea · actual vs presupuesto")}`;
   }
 
   function calcGOP() {
@@ -489,6 +530,8 @@
       { n: "Covers", f: fmtInt, mejor: "alto", ppto: ppto("covers"), v: (id) => m(id, "covers") },
       { n: "Average Check", f: (x) => fmtDec(x), mejor: "alto", ppto: pRatio("ventas", "covers"), v: (id) => ratio(id, "ventas", "covers") },
       { n: "Costo A&B % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costo", "ventas", 100), v: (id) => ratio(id, "costo", "ventas", 100) },
+      { n: "Food cost %", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costoAlim", "ventasAlim", 100), v: (id) => ratio(id, "costoAlim", "ventasAlim", 100) },
+      { n: "Beverage cost %", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costoBeb", "ventasBeb", 100), v: (id) => ratio(id, "costoBeb", "ventasBeb", 100) },
       { n: "Planilla % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("planilla", "ventas", 100), v: (id) => ratio(id, "planilla", "ventas", 100) },
       { n: "GOP", f: fmtMoney, mejor: "alto", ppto: ppto("gop"), v: (id) => m(id, "gop") },
       { n: "Margen GOP", f: (x) => fmtPct(x), pp: true, mejor: "alto", ppto: pRatio("gop", "ventas", 100), v: (id) => ratio(id, "gop", "ventas", 100) },
@@ -557,7 +600,7 @@
         <div class="agenda">${agenda}</div>
       </div>
     </section>
-    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Flechas ← → para navegar · M oculta el menú · F pantalla completa</div>`;
+    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Enter o flechas → para avanzar · Shift + Enter o ← para volver · M oculta el menú · F pantalla completa</div>`;
   }
 
   function viewResumen() {
@@ -755,6 +798,7 @@
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "costo")}
       ${tresTiles(t, fmtPct, { invert: true, pp: true })}
       ${calcCosto()}
+      ${foodBevBlock()}
       ${chartCard("ch-f1", "Costo real vs. presupuesto vs. año anterior", "Costo de consumo como % de la venta, por mes", "tall")}
       <div class="grid split">
         ${chartCard("ch-f2", "Mermas, desperdicios y variación de inventario", "Costo no teórico como % de la venta: aquí se gana o se pierde el punto de margen")}
@@ -764,6 +808,17 @@
   }
   function chartsCosto() {
     const c = C();
+    const fm = ratioMensual("costoAlim", "ventasAlim", 100), bm = ratioMensual("costoBeb", "ventasBeb", 100);
+    mkChart("ch-f3", {
+      type: "line",
+      data: { labels: CONFIG.meses, datasets: [
+        { label: "Food cost actual", data: fm.act, borderColor: c.act, backgroundColor: c.act },
+        { label: "Food cost presupuesto", data: fm.ppto, borderColor: c.ppto, backgroundColor: c.ppto, borderDash: [6, 4], pointRadius: 0 },
+        { label: "Beverage cost actual", data: bm.act, borderColor: c.aa, backgroundColor: c.aa },
+        { label: "Beverage cost presupuesto", data: bm.ppto, borderColor: c.s4, backgroundColor: c.s4, borderDash: [6, 4], pointRadius: 0 }
+      ] },
+      options: { scales: { x: axisX(), y: axisY((x) => fmtPct(x, 0)) }, plugins: { tooltip: tipFmt((x) => fmtPct(x, 2)), legend: LEGEND_IDX } }
+    });
     chartActPptoAA("ch-f1", ratioMensual("costo", "ventas", 100), (x) => fmtPct(x, 0), { lines: true });
     const v = serieMensual("ventas", "act");
     const det = (k) => CONFIG.meses.map((_, m) => (sum(outletIds().map(id => SERIES[id][m].costoDetalle[k])) / v[m]) * 100);
@@ -971,6 +1026,97 @@
     });
   }
 
+  /* ---- Semáforo de rentabilidad ---- */
+  function estadoRef(val, ref) {
+    if (ref.tipo === "max") return val <= ref.verde ? "ok" : val <= ref.ambar ? "warn" : "bad";
+    return val >= ref.verde ? "ok" : val >= ref.ambar ? "warn" : "bad";
+  }
+  const refTxt = (ref) => `${ref.tipo === "max" ? "≤" : "≥"} ${ref.verde}${ref.unidad === "%" ? " %" : ` ${ref.unidad}`}`;
+  function indicadoresRentabilidad() {
+    const R = REFERENCIAS;
+    const v = totales("ventas"), co = totales("costo"), pl = totales("planilla"), g = totales("gop"), e = totales("ebitda");
+    const fc = ratioTotal("costoAlim", "ventasAlim", 100).act, bc = ratioTotal("costoBeb", "ventasBeb", 100).act;
+    const merma = sum(mesIdx().map(i => sum(outletIds().map(id => SERIES[id][i].costoDetalle.merma))));
+    const pct = (a, b) => (a / b) * 100;
+    const p = (x) => fmtPct(x);
+    return [
+      { n: "Food cost %", formula: `${frac("Costo de alimentos", "Ventas de alimentos")} × 100`, val: fc, f: p, ref: R.foodCost, go: "costo",
+        accion: "Recetas estándar costeadas, porcionado, control de mermas, rotación FIFO y negociación de compras." },
+      { n: "Beverage cost %", formula: `${frac("Costo de bebidas", "Ventas de bebidas")} × 100`, val: bc, f: p, ref: R.bevCost, go: "costo",
+        accion: "Medidas estándar por trago, inventario semanal de barra, control de botellas abiertas y precios por copa." },
+      { n: "Costo A&amp;B combinado %", formula: `${frac("Costo de alimentos + bebidas", "Ventas A&amp;B")} × 100`, val: pct(co.act, v.act), f: p, ref: R.costoAB, go: "costo",
+        accion: "Depende de food cost, beverage cost y del mix: impulsar la venta de bebidas mejora el costo total." },
+      { n: "Planilla % de la venta", formula: `${frac("Sueldos + cargas sociales", "Ventas")} × 100`, val: pct(pl.act, v.act), f: p, ref: R.planilla, go: "gop",
+        accion: "Turnos según la demanda por día y franja, personal polifuncional y control de horas extra." },
+      { n: "Prime cost %", formula: `${frac("Costo A&amp;B + Planilla", "Ventas")} × 100`, val: pct(co.act + pl.act, v.act), f: p, ref: R.primeCost, go: "gop",
+        accion: "Es el mayor costo controlable de la operación: si sale de rango, atacar a la vez costo y planilla." },
+      { n: "Margen GOP", formula: `${frac("GOP", "Ventas")} × 100`, val: pct(g.act, v.act), f: p, ref: R.margenGOP, go: "gop",
+        accion: "Crecer en venta con gastos controlables estables: el apalancamiento operativo amplía el margen." },
+      { n: "Margen EBITDA", formula: `${frac("EBITDA", "Ventas")} × 100`, val: pct(e.act, v.act), f: p, ref: R.margenEBITDA, go: "ebitda",
+        accion: "Además de la operación, revisar los gastos no distribuidos asignados (administración, energía, marketing)." },
+      { n: "Cumplimiento de ventas", formula: `${frac("Ventas reales", "Ventas presupuestadas")} × 100`, val: pct(v.act, v.ppto), f: p, ref: R.ventasPpto, go: "ventas",
+        accion: "Venta sugerida, promociones en horas valle, eventos y mejor captación de huéspedes del hotel." },
+      { n: "Mermas % de la venta", formula: `${frac("Mermas y desperdicios", "Ventas")} × 100`, val: pct(merma, v.act), f: (x) => fmtPct(x, 2), ref: R.merma, go: "costo",
+        accion: "Producción según pronóstico, aprovechamiento de insumos, registro diario de mermas y causas." },
+      { n: "GSI (satisfacción)", formula: frac("Σ calificaciones", "N.º de calificaciones"), val: avg(GSI.tendencia.act), f: (x) => x.toFixed(2), ref: R.gsi, go: "gsi",
+        accion: "Sin clientes satisfechos no hay venta sostenible: cerrar cada comentario con una acción y un responsable." },
+      { n: "Cumplimiento de inocuidad", formula: `${frac("Controles cumplidos", "Controles programados")} × 100`, val: avg(SEGURIDAD.cumplimiento.act), f: p, ref: R.inocuidad, go: "seguridad",
+        accion: "Un incidente de inocuidad cuesta más que cualquier ahorro: capacitación BPM/HACCP y registros al día." }
+    ].map(x => ({ ...x, estado: estadoRef(x.val, x.ref) }));
+  }
+  const ESTADO_TXT = { ok: "Sano", warn: "Vigilar", bad: "Actuar" };
+  function viewSemaforo() {
+    const sec = SECCIONES.semaforo, ind = indicadoresRentabilidad();
+    const n = (k) => ind.filter(x => x.estado === k).length;
+    const c = C();
+    const fuera = ind.filter(x => x.estado !== "ok").sort((a, b) => (a.estado === "bad" ? -1 : 1) - (b.estado === "bad" ? -1 : 1));
+    const ins = fuera.length
+      ? fuera.slice(0, 4).map(x => `<b>${x.n}</b> en ${x.f(x.val)} (referencia ${refTxt(x.ref)}): ${x.accion}`)
+      : ["Todos los indicadores están dentro de los rangos sanos: el reto es sostenerlos mes a mes y elevar el estándar."];
+    return `${sectionHead(sec, sec.seccion, "semaforo")}
+      <div class="grid c3">
+        ${tile({ label: "Indicadores sanos", value: `${n("ok")} <span class="of">de ${ind.length}</span>`, color: c.good, meta: "Dentro del rango de referencia" })}
+        ${tile({ label: "Para vigilar", value: `${n("warn")} <span class="of">de ${ind.length}</span>`, color: CSS("--warn"), meta: "Cerca del límite: tendencia a corregir" })}
+        ${tile({ label: "Para actuar", value: `${n("bad")} <span class="of">de ${ind.length}</span>`, color: c.bad, meta: "Fuera de rango: requieren un plan de acción" })}
+      </div>
+      <div class="card"><div class="card-title">Indicadores clave de rentabilidad</div>
+        <div class="card-sub">${esc(outletNombre())} · ${periodoNombre()} · Rangos orientativos para A&amp;B de hotel (editables en <code>REFERENCIAS</code>, archivo data.js)</div>
+        <div class="table-scroll"><table class="sem-table"><thead><tr><th>Indicador</th><th>Fórmula</th><th>Resultado</th><th>Referencia sana</th><th>Estado</th><th>Qué hacer para mejorarlo</th></tr></thead><tbody>
+          ${ind.map(x => `<tr><td><button class="link" data-go="${x.go}">${x.n}</button></td><td class="f"><span class="math">${x.formula}</span></td><td class="n"><b>${x.f(x.val)}</b></td><td class="n">${refTxt(x.ref)}</td>
+            <td><span class="pill ${x.estado === "ok" ? "ok" : x.estado === "warn" ? "warn" : "bad"}">${ESTADO_TXT[x.estado]}</span></td><td class="txt">${x.accion}</td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="legend-note">Verde: sano · ámbar: vigilar (entre el rango sano y el límite) · rojo: actuar. Los rangos varían según categoría del hotel, concepto y mercado; úsalos como punto de partida.</p>
+      </div>
+      <div class="grid split">
+        ${chartCard("ch-sem-1", "¿A dónde va cada US$ 100 de venta?", "Estructura de costos y resultado: actual vs presupuesto", "tall")}
+        ${insightsCard(ins, "Prioridades de acción")}
+      </div>
+      <div class="card"><div class="card-title">Otros indicadores recomendados</div><div class="card-sub">Complementan el análisis de rentabilidad; requieren datos operativos adicionales</div>
+        <div class="table-scroll"><table class="sem-table"><thead><tr><th>Indicador</th><th>Fórmula</th><th>Para qué sirve</th></tr></thead><tbody>
+          ${[
+            ["Margen de contribución por plato", `Precio de venta − Costo de la receta`, "Ingeniería de menú: identificar platos estrella, caballos de batalla, enigmas y perros."],
+            ["RevPASH", frac("Ventas", "Asientos disponibles × horas de servicio"), "Ingreso por asiento disponible por hora: mide el aprovechamiento de la capacidad del salón."],
+            ["Rotación de inventario (días)", `${frac("Inventario promedio", "Costo de consumo")} × días del periodo`, "Días de stock en almacén: exceso de inventario inmoviliza caja y aumenta mermas."],
+            ["Productividad laboral", frac("Covers atendidos", "Horas trabajadas"), "Clientes atendidos por hora de trabajo; base para programar turnos."],
+            ["Captación de huéspedes", `${frac("Huéspedes que consumen en A&amp;B", "Huéspedes alojados")} × 100`, "Cuánto aprovecha A&amp;B la ocupación del hotel."],
+            ["Costo por cover", frac("Costo A&amp;B", "Covers"), "Costo promedio de lo servido a cada cliente; se compara con el average check."]
+          ].map(([a, b, d]) => `<tr><td><b>${a}</b></td><td class="f"><span class="math">${b}</span></td><td class="txt">${d}</td></tr>`).join("")}
+        </tbody></table></div></div>`;
+  }
+  function chartsSemaforo() {
+    const v = totales("ventas"), ca = totales("costoAlim"), cb = totales("costoBeb"), pl = totales("planilla"), ot = totales("otros"), g = totales("gop"), e = totales("ebitda");
+    const parte = (x, k) => (x[k] / v[k]) * 100;
+    const nd = { act: g.act - e.act, ppto: g.ppto - e.ppto };
+    const cols = [CSS("--s-actual"), "#6aa2e8", CSS("--s-aa"), CSS("--s-4"), CSS("--s-ppto"), CSS("--good")];
+    const series = [["Costo de alimentos", ca], ["Costo de bebidas", cb], ["Planilla", pl], ["Otros gastos", ot], ["No distribuidos", nd], ["EBITDA", e]];
+    mkChart("ch-sem-1", {
+      type: "bar",
+      data: { labels: [`Actual ${CONFIG.anio}`, "Presupuesto"], datasets: series.map(([l, x], i) => ({ label: l, data: [parte(x, "act"), parte(x, "ppto")], backgroundColor: cols[i], borderColor: "#fff", borderWidth: { right: 2 }, borderSkipped: false })) },
+      options: { indexAxis: "y", scales: { x: axisY((x) => `US$ ${x}`, { stacked: true, min: 0, max: 100 }), y: axisX({ stacked: true }) },
+        plugins: { legend: LEGEND_IDX, tooltip: { callbacks: { label: (x) => ` ${x.dataset.label}: US$ ${x.parsed.x.toFixed(2)} de cada US$ 100` } } } }
+    });
+  }
+
   /* ---------------- Registro de vistas ---------------- */
   const VIEWS = {
     portada: { html: viewPortada, charts: null, filtros: false },
@@ -982,7 +1128,8 @@
     gop: { html: viewGOP, charts: chartsGOP, filtros: true },
     ebitda: { html: viewEBITDA, charts: chartsEBITDA, filtros: true },
     gsi: { html: viewGSI, charts: chartsGSI, filtros: "outlet" },
-    seguridad: { html: viewSeguridad, charts: chartsSeguridad, filtros: false }
+    seguridad: { html: viewSeguridad, charts: chartsSeguridad, filtros: false },
+    semaforo: { html: viewSemaforo, charts: chartsSemaforo, filtros: true }
   };
 
   /* ---------------- Shell: sidebar + topbar ---------------- */
@@ -1028,6 +1175,10 @@
       if (act.dataset.act === "menu") toggleNav();
       if (act.dataset.act === "logout") window.dispatchEvent(new Event("fb:logout"));
     });
+    // Tras un clic con el mouse se quita el foco del botón, para que Enter pase de hoja y no lo vuelva a pulsar
+    app.addEventListener("click", (e) => {
+      if (e.detail > 0 && e.target.closest("button, summary")) setTimeout(() => document.activeElement?.blur?.(), 0);
+    });
     app.addEventListener("change", (e) => {
       if (e.target.id === "sel-outlet") { state.outlet = e.target.value; render(); }
       if (e.target.id === "sel-mes") { state.mes = e.target.value; render(); }
@@ -1049,8 +1200,8 @@
       ${state.view !== "portada" ? escSel : ""}
       ${v.filtros === true || v.filtros === "outlet" ? outletSel : ""}
       ${v.filtros === true ? mesSel : ""}
-      <button class="icon-btn" data-act="prev" title="Anterior (←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
-      <button class="icon-btn" data-act="next" title="Siguiente (→)" ${i === ORDER.length - 1 ? "disabled" : ""}>&#8594;</button>
+      <button class="icon-btn" data-act="prev" title="Anterior (Shift + Enter o ←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
+      <button class="icon-btn" data-act="next" title="Siguiente (Enter o →)" ${i === ORDER.length - 1 ? "disabled" : ""}>&#8594;</button>
       <button class="icon-btn" data-act="full" title="Modo presentación (F)">&#x26F6;</button>`;
     const n = NAV[i];
     document.getElementById("crumb").innerHTML = `${esc(CONFIG.titulo)} &nbsp;/&nbsp; <b>${esc(n.label)}</b> &nbsp;·&nbsp; ${i + 1} de ${ORDER.length}`;
@@ -1103,6 +1254,11 @@
       if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
       if (e.key === "ArrowRight" || e.key === "PageDown") step(1);
       if (e.key === "ArrowLeft" || e.key === "PageUp") step(-1);
+      // Enter: siguiente hoja · Shift + Enter: hoja anterior (sin interferir con botones o enlaces enfocados con Tab)
+      if (e.key === "Enter" && !e.altKey && !e.ctrlKey && !e.metaKey && !["BUTTON", "A", "SUMMARY"].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        step(e.shiftKey ? -1 : 1);
+      }
       if (e.key.toLowerCase() === "f") toggleFull();
       if (e.key.toLowerCase() === "m") toggleNav();
       if (e.key === "Home") navigate("portada");

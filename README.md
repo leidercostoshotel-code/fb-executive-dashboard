@@ -37,6 +37,9 @@ El dashboard solo se muestra después de iniciar sesión con **Firebase Authenti
 3. 01 Ventas · 02 Covers · 03 Average Check · 04 F&B Cost · 05 GOP · 06 EBITDA
 4. Resultados de GSI (experiencia del cliente)
 5. Seguridad Alimentaria y Sostenibilidad
+6. Semáforo de rentabilidad: food cost, beverage cost, prime cost, márgenes, mermas, GSI e inocuidad frente a rangos de referencia (editables en `REFERENCIAS`, `data.js`)
+
+La sección 04 incluye **Food Cost % y Beverage Cost %** por separado, con su fórmula, sustitución y relación con el costo A&B total (promedio ponderado por el mix de venta).
 
 Cada KPI muestra **Actual | Presupuesto | Año anterior**, su fórmula, gráficos mensuales, lectura ejecutiva y tabla de detalle.
 
@@ -44,7 +47,7 @@ Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula
 
 ## Uso durante la exposición
 
-- Flechas `←` `→` (o PageUp/PageDown) para avanzar entre secciones; `Home` vuelve a la portada.
+- `Enter` o `→` (o PageDown) avanza a la siguiente sección; `Shift + Enter` o `←` (o PageUp) vuelve; `Home` vuelve a la portada. Funciona también en pantalla completa.
 - Selector **Escenario** (Real · Eficiente · Deficiente): simula los resultados "Actual" de una empresa eficiente o deficiente con el mismo presupuesto y año anterior; todo el dashboard (KPIs, fórmulas, gráficos, GSI y seguridad) se recalcula. El Resumen ejecutivo incluye el comparativo lado a lado. Los supuestos de cada escenario están en `ESCENARIOS` dentro de `data.js`.
 - `M` o el botón ☰ oculta/muestra el menú lateral para usar todo el ancho de la pantalla (se recuerda en el navegador).
 - `F` o el botón ⛶ activa el modo presentación (pantalla completa).
