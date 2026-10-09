@@ -635,7 +635,11 @@
       <aside class="sidebar">
         <div class="brand"><div class="eyebrow">Alimentos & Bebidas</div><h1 class="serif">${esc(CONFIG.titulo)}</h1><p>${esc(CONFIG.subtitulo)}</p></div>
         <nav class="nav" aria-label="Secciones">${navHtml}</nav>
-        <div class="sidebar-foot"><strong>${esc(CONFIG.autor)}</strong><br>${esc(CONFIG.lema)}</div>
+        <div class="sidebar-foot">
+          <div class="user-box"><span class="who" id="user-email"></span><button class="logout-btn" data-act="logout" title="Cerrar sesión">Salir</button></div>
+          <strong>${esc(CONFIG.autor)}</strong><br>${esc(CONFIG.lema)}
+          <div class="powered">Powered by <a href="https://leidertisnado.com/" target="_blank" rel="noopener">leidertisnado.com</a></div>
+        </div>
       </aside>
       <div class="main">
         <header class="topbar">
@@ -652,6 +656,7 @@
       if (act.dataset.act === "prev") step(-1);
       if (act.dataset.act === "next") step(1);
       if (act.dataset.act === "full") toggleFull();
+      if (act.dataset.act === "logout") window.dispatchEvent(new Event("fb:logout"));
     });
     app.addEventListener("change", (e) => {
       if (e.target.id === "sel-outlet") { state.outlet = e.target.value; render(); }
@@ -717,5 +722,13 @@
       if (e.key === "Home") navigate("portada");
     });
   }
-  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", init) : init();
+  // El dashboard arranca cuando auth.js confirma una sesión iniciada
+  let started = false;
+  window.FBDashboard = {
+    start(user) {
+      if (!started) { started = true; init(); }
+      const who = document.getElementById("user-email");
+      if (who) { who.textContent = user?.email || ""; who.title = user?.email || ""; }
+    }
+  };
 })();
