@@ -37,8 +37,26 @@ function rng(seed) {
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-const rand = rng(20260908);
+const SEMILLA = 20260908;
+let rand = rng(SEMILLA);
 const noise = (amp) => (rand() * 2 - 1) * amp;
+
+/* ---------- Escenarios de prueba ----------
+   Modifican solo los resultados "Actual": presupuesto y año anterior no cambian.
+   Valores: desvíos sobre la operación real (fracciones de la venta o del presupuesto). */
+const ESCENARIOS = {
+  real: { nombre: "Real", titulo: "Operación real",
+    ventas: 0, check: 0, costo: 0, merma: 0, planilla: 0, otros: 0, nd: 0,
+    gsi: 0, cumplimiento: 0, incidencias: 1, acciones: null, mermaSost: 0, recursos: 0, residuos: 0, adicionales: 1 },
+  eficiente: { nombre: "Eficiente", titulo: "Empresa eficiente",
+    descripcion: "más venta y mejor ticket por venta sugerida, costo controlado (compras, porcionado y mermas), planilla ajustada a la demanda y gastos bajo presupuesto",
+    ventas: 0.06, check: 0.035, costo: -0.02, merma: -0.005, planilla: -0.04, otros: -0.06, nd: -0.006,
+    gsi: 0.35, cumplimiento: 3, incidencias: 0.55, acciones: { abiertas: 2, cerradas: 44 }, mermaSost: -0.35, recursos: -5, residuos: 10, adicionales: 1.15 },
+  deficiente: { nombre: "Deficiente", titulo: "Empresa deficiente",
+    descripcion: "menos clientes y ticket más bajo, costo alto por mermas y compras sin control, horas extra en planilla y gastos por encima del presupuesto",
+    ventas: -0.09, check: -0.05, costo: 0.045, merma: 0.015, planilla: 0.09, otros: 0.12, nd: 0.012,
+    gsi: -0.6, cumplimiento: -9, incidencias: 1.9, acciones: { abiertas: 19, cerradas: 24 }, mermaSost: 1.1, recursos: 9, residuos: -22, adicionales: 0.72 }
+};
 
 /* Estacionalidad mensual Ene–Sep */
 const ESTACIONALIDAD = [0.95, 0.90, 0.98, 1.00, 1.02, 1.00, 1.08, 1.10, 1.00];
@@ -47,16 +65,16 @@ const HISTORIA_VENTAS = { rest: 0.045, bar: 0.085, rs: -0.012, banq: 0.018 };
 /* Historia F&B cost: julio con pico de costo en Restaurante y Banquetes */
 const PICO_COSTO = { rest: { 6: 0.025 }, banq: { 6: 0.018 }, bar: {}, rs: {} };
 
-function construirSerie(outlet) {
+function construirSerie(outlet, e = ESCENARIOS.real) {
   const meses = CONFIG.meses.map((_, m) => {
     const f = ESTACIONALIDAD[m];
     const ventaPpto = Math.round(outlet.ventaBase * f);
     const ventaAA = Math.round(ventaPpto * (0.935 + noise(0.02)));
-    const ventaAct = Math.round(ventaPpto * (1 + HISTORIA_VENTAS[outlet.id] + noise(0.025)));
+    const ventaAct = Math.round(ventaPpto * (1 + HISTORIA_VENTAS[outlet.id] + noise(0.025) + e.ventas));
 
     const checkPpto = +(outlet.check * (1 + (m >= 6 ? 0.03 : 0))).toFixed(2);
     const checkAA = +(checkPpto * (0.96 + noise(0.015))).toFixed(2);
-    const checkAct = +(checkPpto * (1.02 + noise(0.02))).toFixed(2);
+    const checkAct = +(checkPpto * (1.02 + noise(0.02) + e.check)).toFixed(2);
 
     const coversPpto = Math.round(ventaPpto / checkPpto);
     const coversAA = Math.round(ventaAA / checkAA);
@@ -64,21 +82,21 @@ function construirSerie(outlet) {
 
     const costoPctPpto = outlet.costoPct;
     const costoPctAA = costoPctPpto + 0.012 + noise(0.004);
-    const costoPctAct = costoPctPpto - 0.006 + (PICO_COSTO[outlet.id][m] || 0) + noise(0.006);
+    const costoPctAct = costoPctPpto - 0.006 + (PICO_COSTO[outlet.id][m] || 0) + noise(0.006) + e.costo;
 
     const costoPpto = Math.round(ventaPpto * costoPctPpto);
     const costoAA = Math.round(ventaAA * costoPctAA);
     const costoAct = Math.round(ventaAct * costoPctAct);
 
     // Mermas y variación de inventario como parte del costo real
-    const mermaPct = 0.016 + (PICO_COSTO[outlet.id][m] ? 0.009 : 0) + noise(0.003);
+    const mermaPct = 0.016 + (PICO_COSTO[outlet.id][m] ? 0.009 : 0) + noise(0.003) + e.merma;
     const varInvPct = 0.004 + noise(0.003);
 
     const planillaPpto = Math.round(ventaPpto * outlet.planillaPct);
-    const planillaAct = Math.round(ventaPpto * outlet.planillaPct * (1.01 + noise(0.015)));
+    const planillaAct = Math.round(ventaPpto * outlet.planillaPct * (1.01 + noise(0.015) + e.planilla));
     const planillaAA = Math.round(ventaAA * (outlet.planillaPct + 0.01));
     const otrosPpto = Math.round(ventaPpto * outlet.otrosPct);
-    const otrosAct = Math.round(ventaAct * outlet.otrosPct * (0.98 + noise(0.02)));
+    const otrosAct = Math.round(ventaAct * outlet.otrosPct * (0.98 + noise(0.02) + e.otros));
     const otrosAA = Math.round(ventaAA * (outlet.otrosPct + 0.005));
 
     const gopPpto = ventaPpto - costoPpto - planillaPpto - otrosPpto;
@@ -87,7 +105,7 @@ function construirSerie(outlet) {
 
     // Gastos no distribuidos (administración, marketing, energía) ≈ 6 % de la venta
     const ndPpto = Math.round(ventaPpto * 0.06);
-    const ndAct = Math.round(ventaAct * (0.058 + noise(0.004)));
+    const ndAct = Math.round(ventaAct * (0.058 + noise(0.004) + e.nd));
     const ndAA = Math.round(ventaAA * 0.064);
 
     return {
@@ -105,8 +123,14 @@ function construirSerie(outlet) {
   return meses;
 }
 
-const SERIES = {};
-OUTLETS.forEach(o => { SERIES[o.id] = construirSerie(o); });
+/* Series de todos los outlets para un escenario (misma semilla: resultados reproducibles) */
+function generarSeries(id = "real") {
+  rand = rng(SEMILLA);
+  const out = {};
+  OUTLETS.forEach(o => { out[o.id] = construirSerie(o, ESCENARIOS[id]); });
+  return out;
+}
+const SERIES = generarSeries("real");
 
 /* ---------- Distribución de covers por día y franja (porcentajes) ---------- */
 const COVERS_DIA = {
@@ -203,3 +227,54 @@ const SECCIONES = {
     puntos: ["Control de temperaturas, higiene y contaminación cruzada", "Trazabilidad, almacenamiento y cumplimiento de procedimientos", "Mermas, consumo de agua y energía, y segregación de residuos"], formula: "SEGUIMIENTO = controles cumplidos + acciones correctivas",
     nota: "Revisar resultados, responsables, incidencias y avances por periodo" }
 };
+
+/* ---------- Datos no financieros por escenario ---------- */
+const BASE_NO_FIN = JSON.parse(JSON.stringify({
+  gsiTend: GSI.tendencia.act, gsiOutlet: GSI.porOutlet, cumpl: SEGURIDAD.cumplimiento.act, inc: SEGURIDAD.incidencias.act,
+  acciones: SEGURIDAD.accionesCorrectivas, controles: SEGURIDAD.controles.map(c => c.cumplimiento),
+  merma: SEGURIDAD.sostenibilidad.mermaPct.act, agua: SEGURIDAD.sostenibilidad.aguaIdx, energia: SEGURIDAD.sostenibilidad.energiaIdx,
+  residuos: SEGURIDAD.sostenibilidad.residuosSegregadosPct, adicionales: VENTAS_ADICIONALES.act
+}));
+const acotar = (v, min, max) => Math.min(max, Math.max(min, v));
+const r1 = (v) => Math.round(v * 10) / 10;
+
+function noFinancieros(id) {
+  const e = ESCENARIOS[id], b = BASE_NO_FIN;
+  const gsiOutlet = {};
+  Object.keys(b.gsiOutlet).forEach(k => { gsiOutlet[k] = b.gsiOutlet[k].map(v => r1(acotar(v + e.gsi, 1, 9.9))); });
+  return {
+    gsiTend: b.gsiTend.map(v => r1(acotar(v + e.gsi, 1, 9.9))), gsiOutlet,
+    cumpl: b.cumpl.map(v => acotar(v + e.cumplimiento, 0, 100)),
+    inc: b.inc.map(v => Math.round(v * e.incidencias)),
+    acciones: e.acciones || b.acciones,
+    controles: b.controles.map(v => acotar(v + e.cumplimiento, 0, 100)),
+    merma: b.merma.map(v => r1(v + e.mermaSost)),
+    agua: b.agua.map(v => v + e.recursos), energia: b.energia.map(v => v + e.recursos),
+    residuos: b.residuos.map(v => acotar(v + e.residuos, 0, 100)),
+    adicionales: b.adicionales.map(v => +(v * e.adicionales).toFixed(2))
+  };
+}
+
+/* Aplica un escenario a los datos globales que usa el dashboard */
+let ESCENARIO_ACTIVO = "real";
+function aplicarEscenario(id) {
+  if (!ESCENARIOS[id]) id = "real";
+  const nuevas = generarSeries(id);
+  Object.keys(nuevas).forEach(k => { SERIES[k] = nuevas[k]; });
+  const n = noFinancieros(id);
+  GSI.tendencia.act = n.gsiTend;
+  GSI.porOutlet = n.gsiOutlet;
+  SEGURIDAD.cumplimiento.act = n.cumpl;
+  SEGURIDAD.incidencias.act = n.inc;
+  SEGURIDAD.accionesCorrectivas = n.acciones;
+  SEGURIDAD.controles.forEach((c, i) => {
+    c.cumplimiento = n.controles[i];
+    c.estado = c.cumplimiento >= SEGURIDAD.metaCumplimiento ? "Conforme" : c.cumplimiento >= 90 ? "Observado" : "Pendiente";
+  });
+  SEGURIDAD.sostenibilidad.mermaPct.act = n.merma;
+  SEGURIDAD.sostenibilidad.aguaIdx = n.agua;
+  SEGURIDAD.sostenibilidad.energiaIdx = n.energia;
+  SEGURIDAD.sostenibilidad.residuosSegregadosPct = n.residuos;
+  VENTAS_ADICIONALES.act = n.adicionales;
+  ESCENARIO_ACTIVO = id;
+}

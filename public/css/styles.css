@@ -85,9 +85,21 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
 }
 .tb-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.topbar .crumb { font-size: 13.5px; color: var(--text-3); }
+.topbar .crumb { font-size: 13.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tb-left { flex: 1 1 auto; }
+
+/* Selector de escenario (Real · Eficiente · Deficiente) */
+.control.scen { padding: 3px 4px 3px 10px; gap: 4px; }
+.control.scen button {
+  border: 0; background: transparent; color: var(--text-2); font-weight: 600; font-size: 13.5px;
+  padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s;
+}
+.control.scen button:hover { background: #eef1f6; color: var(--text); }
+.control.scen button.on { background: var(--navy-800); color: #fff; }
+.control.scen button.on.eficiente { background: var(--good); }
+.control.scen button.on.deficiente { background: var(--bad); }
 .topbar .crumb b { color: var(--text); font-weight: 600; }
-.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .control { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
 .control label { font-size: 13px; color: var(--text-3); font-weight: 500; }
 .control select { border: 0; background: transparent; color: var(--text); font-weight: 500; outline: none; cursor: pointer; }
@@ -187,6 +199,24 @@ details summary::-webkit-details-marker { display: none; }
 details summary::before { content: "▸"; color: var(--gold); transition: transform .15s; }
 details[open] summary::before { transform: rotate(90deg); }
 details .table-scroll { margin-top: 14px; overflow-x: auto; }
+
+/* ---------- Escenarios de prueba ---------- */
+.scen-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 18px; border-radius: 12px; font-size: 14.5px; line-height: 1.5; border: 1px solid;
+}
+.scen-banner.eficiente { background: rgba(12,163,12,.08); border-color: rgba(12,163,12,.35); color: #0b5e0b; }
+.scen-banner.deficiente { background: rgba(208,59,59,.08); border-color: rgba(208,59,59,.35); color: #8a2323; }
+.scen-back { border: 1px solid currentColor; background: #fff; color: inherit; font-weight: 600; font-size: 13.5px; padding: 7px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.scen-back:hover { background: rgba(255,255,255,.6); }
+.scen-why { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 22px; margin-bottom: 14px; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+.scen-why b { color: var(--text); }
+.scen-why .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
+.scen-table th i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+.scen-table th.on, .scen-table td.on { background: #eef3fb; }
+.scen-table tr.key td { font-weight: 700; }
+.scen-chart { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.scen-table td small { color: var(--text-3); font-weight: 500; }
 
 /* ---------- Fórmulas y memoria de cálculo ---------- */
 .math { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .4em; font-variant-numeric: tabular-nums; line-height: 1.5; }
@@ -288,6 +318,7 @@ table.pl tr.sub td { font-weight: 700; background: #f7f8fb; border-top: 1px soli
   .calc-table td.expr { display: block; padding-bottom: 6px; }
   .calc-table td.eqs { padding-right: 6px; }
   .topbar .crumb { display: none; }
+  .scen-why { grid-template-columns: 1fr; }
   .nav { flex-direction: row; flex-wrap: wrap; gap: 6px; }
   .nav-group { display: none; }
   .nav button { width: auto; padding: 8px 12px; font-size: 13px; }

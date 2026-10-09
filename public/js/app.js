@@ -470,6 +470,79 @@
     });
   }
 
+  /* ---------------- Escenarios de prueba: eficiente vs deficiente ---------------- */
+  const ESC_ORDEN = ["deficiente", "real", "eficiente"];
+  const escColor = (id) => ({ deficiente: CSS("--bad"), real: CSS("--s-actual"), eficiente: CSS("--good") }[id]);
+  function datosEscenario(id) {
+    const S = generarSeries(id), nf = noFinancieros(id);
+    const agg = (campo, k = "act") => sum(outletIds().map(o => sum(mesIdx().map(i => S[o][i][campo][k]))));
+    return { agg, nf };
+  }
+  function filasComparativo() {
+    const d = {}; ESC_ORDEN.forEach(id => { d[id] = datosEscenario(id); });
+    const ppto = (campo) => d.real.agg(campo, "ppto");
+    const m = (id, campo) => d[id].agg(campo);
+    const ratio = (id, a, b, mult = 1) => (m(id, a) / m(id, b)) * mult;
+    const pRatio = (a, b, mult = 1) => (ppto(a) / ppto(b)) * mult;
+    return [
+      { n: "Ventas", f: fmtMoney, mejor: "alto", ppto: ppto("ventas"), v: (id) => m(id, "ventas") },
+      { n: "Covers", f: fmtInt, mejor: "alto", ppto: ppto("covers"), v: (id) => m(id, "covers") },
+      { n: "Average Check", f: (x) => fmtDec(x), mejor: "alto", ppto: pRatio("ventas", "covers"), v: (id) => ratio(id, "ventas", "covers") },
+      { n: "Costo A&B % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costo", "ventas", 100), v: (id) => ratio(id, "costo", "ventas", 100) },
+      { n: "Planilla % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("planilla", "ventas", 100), v: (id) => ratio(id, "planilla", "ventas", 100) },
+      { n: "GOP", f: fmtMoney, mejor: "alto", ppto: ppto("gop"), v: (id) => m(id, "gop") },
+      { n: "Margen GOP", f: (x) => fmtPct(x), pp: true, mejor: "alto", ppto: pRatio("gop", "ventas", 100), v: (id) => ratio(id, "gop", "ventas", 100) },
+      { n: "EBITDA", f: fmtMoney, mejor: "alto", ppto: ppto("ebitda"), v: (id) => m(id, "ebitda"), clave: true },
+      { n: "Margen EBITDA", f: (x) => fmtPct(x), pp: true, mejor: "alto", ppto: pRatio("ebitda", "ventas", 100), v: (id) => ratio(id, "ebitda", "ventas", 100), clave: true },
+      { n: "GSI (satisfacción, 1–10)", f: (x) => x.toFixed(2), pp: true, unit: "pts", mejor: "alto", ppto: GSI.meta, pptoLabel: "meta", v: (id) => avg(d[id].nf.gsiTend) },
+      { n: "Incidencias de inocuidad", f: (x) => String(x), mejor: "bajo", ppto: null, v: (id) => sum(d[id].nf.inc) }
+    ];
+  }
+  function comparativoEscenarios() {
+    const filas = filasComparativo(), act = ESCENARIO_ACTIVO;
+    const brecha = (r) => {
+      const a = r.v("eficiente"), b = r.v("deficiente");
+      return r.pp ? `${signo(a - b, r.unit === "pts" ? 2 : 1)} ${r.unit || "pp"}` : `${signo(varPct(a, b))} %`;
+    };
+    const head = `<tr><th>Indicador</th><th>Presupuesto</th>${ESC_ORDEN.map(id => `<th class="${id === act ? "on" : ""}"><i style="background:${escColor(id)}"></i>${ESCENARIOS[id].titulo}</th>`).join("")}<th>Brecha eficiente vs deficiente</th></tr>`;
+    const body = filas.map(r => `<tr class="${r.clave ? "key" : ""}"><td>${esc(r.n)}</td><td>${r.ppto === null ? "—" : `${r.f(r.ppto)}${r.pptoLabel ? ` <small>(${r.pptoLabel})</small>` : ""}`}</td>
+      ${ESC_ORDEN.map(id => { const v = r.v(id); const ok = r.ppto === null ? null : r.mejor === "alto" ? v >= r.ppto : v <= r.ppto;
+        return `<td class="${id === act ? "on" : ""} ${ok === null ? "" : ok ? "pos" : "neg"}">${r.f(v)}</td>`; }).join("")}
+      <td><b>${brecha(r)}</b></td></tr>`).join("");
+    const ef = ESCENARIOS.eficiente, de = ESCENARIOS.deficiente;
+    return `<div class="card scen-compare">
+      <div class="card-title">Comparativo de escenarios: empresa eficiente vs deficiente</div>
+      <div class="card-sub">Mismo presupuesto y mismo año anterior; cambia solo la forma de operar · ${esc(outletNombre())} · ${periodoNombre()}</div>
+      <div class="scen-why">
+        <div><span class="dot" style="background:${escColor("eficiente")}"></span><b>Eficiente:</b> ${ef.descripcion}.</div>
+        <div><span class="dot" style="background:${escColor("deficiente")}"></span><b>Deficiente:</b> ${de.descripcion}.</div>
+      </div>
+      <div class="table-scroll"><table class="scen-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      <div class="scen-chart"><div class="card-title">EBITDA por escenario</div><div class="card-sub">US$ y margen EBITDA frente al presupuesto</div>
+        <div class="chart-wrap"><canvas id="ch-res-4" role="img" aria-label="EBITDA por escenario"></canvas></div></div>
+      <p class="legend-note">Verde: cumple o supera el presupuesto · rojo: no lo alcanza. Brecha: variación % (montos y cantidades) o diferencia en pp/pts (porcentajes e índices) entre ambos escenarios. Usa el selector <b>Escenario</b> de la barra superior para recorrer todo el dashboard en cada caso.</p>
+    </div>`;
+  }
+  function chartEscenarios(id) {
+    const filas = filasComparativo(), eb = filas.find(r => r.n === "EBITDA"), me = filas.find(r => r.n === "Margen EBITDA");
+    const labels = ["Presupuesto", ...ESC_ORDEN.map(x => ESCENARIOS[x].nombre)];
+    const vals = [eb.ppto, ...ESC_ORDEN.map(x => eb.v(x))], margs = [me.ppto, ...ESC_ORDEN.map(x => me.v(x))];
+    mkChart(id, {
+      type: "bar",
+      data: { labels, datasets: [{ label: "EBITDA", data: vals, backgroundColor: [CSS("--s-ppto"), ...ESC_ORDEN.map(escColor)], categoryPercentage: 0.7, barPercentage: 0.9 }] },
+      options: { layout: { padding: { top: 24 } }, plugins: { legend: { display: false }, valueLabels: { fmt: (x, i) => `${fmtMoneyC(x)} · ${fmtPct(margs[i])}`, minGap: 40 },
+        tooltip: { callbacks: { label: (x) => ` EBITDA: ${fmtMoney(x.parsed.y)} · margen ${fmtPct(margs[x.dataIndex])}` } } },
+        scales: { x: axisX({ ticks: { maxRotation: 0, autoSkip: false } }), y: axisY(fmtMoneyC, { beginAtZero: true }) } }
+    });
+  }
+  function bannerEscenario() {
+    if (ESCENARIO_ACTIVO === "real") return "";
+    const e = ESCENARIOS[ESCENARIO_ACTIVO];
+    return `<div class="scen-banner ${ESCENARIO_ACTIVO}"><div><b>Escenario de prueba: ${e.titulo}.</b> Los valores "Actual" simulan ${e.descripcion}. El presupuesto y el año anterior no cambian.</div>
+      <button class="scen-back" data-esc="real">Volver a la operación real</button></div>`;
+  }
+  function setEscenario(id) { aplicarEscenario(id); render(); }
+
   /* ---------------- Vistas ---------------- */
   function viewPortada() {
     const agenda = NAV.filter(n => n.id !== "portada").map(n => `<span>${n.num ? `<b>${n.num}</b>` : ""}${esc(n.label)}</span>`).join("");
@@ -496,8 +569,8 @@
       <div class="deltas">${deltaPill(a, b, "Ppto", opts)}${deltaPill(a, aa, CONFIG.anioAnterior, opts)}</div></div>`;
     const ins = [
       `La venta ${state.mes === "ytd" ? "acumulada" : "del mes"} alcanza <b>${fmtMoney(v.act)}</b>, ${varPct(v.act, v.ppto) >= 0 ? "superando" : "por debajo de"} el presupuesto en <b>${Math.abs(varPct(v.act, v.ppto)).toFixed(1)} %</b> y creciendo <b>${varPct(v.act, v.aa).toFixed(1)} %</b> frente a ${CONFIG.anioAnterior}.`,
-      `El crecimiento se explica por covers (<b>${varPct(cv.act, cv.aa) > 0 ? "+" : ""}${varPct(cv.act, cv.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}) y por ticket promedio (<b>${varPct(ck.act, ck.aa) > 0 ? "+" : ""}${varPct(ck.act, ck.aa).toFixed(1)} %</b>): volumen y valor avanzan a la vez.`,
-      `El costo de A&B se ubica en <b>${fmtPct(cp.act)}</b> de la venta (${fmtPP(cp.act - cp.ppto)} vs presupuesto, ${fmtPP(cp.act - cp.aa)} vs ${CONFIG.anioAnterior}): la disciplina de compras, porcionado e inventarios protege el margen.`,
+      `El crecimiento se explica por covers (<b>${varPct(cv.act, cv.aa) > 0 ? "+" : ""}${varPct(cv.act, cv.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}) y por ticket promedio (<b>${varPct(ck.act, ck.aa) > 0 ? "+" : ""}${varPct(ck.act, ck.aa).toFixed(1)} %</b>): ${varPct(cv.act, cv.aa) >= 0 && varPct(ck.act, ck.aa) >= 0 ? "volumen y valor avanzan a la vez" : varPct(cv.act, cv.aa) < 0 && varPct(ck.act, ck.aa) < 0 ? "caen a la vez el volumen y el valor" : "uno de los dos motores frena el crecimiento"}.`,
+      `El costo de A&B se ubica en <b>${fmtPct(cp.act)}</b> de la venta (${fmtPP(cp.act - cp.ppto)} vs presupuesto, ${fmtPP(cp.act - cp.aa)} vs ${CONFIG.anioAnterior}): ${cp.act <= cp.ppto ? "la disciplina de compras, porcionado e inventarios protege el margen" : "el exceso sobre el presupuesto erosiona el margen; revisar compras, porcionado, inventarios y mermas"}.`,
       `El GOP llega a <b>${fmtMoney(g.act)}</b> (margen ${fmtPct(mg.act)}) y el EBITDA a <b>${fmtMoney(e.act)}</b> con un margen de <b>${fmtPct(me.act)}</b>, ${fmtPP(me.act - me.aa)} frente al año anterior.`
     ];
     return `<div class="section-head"><div><div class="kicker">Resumen ejecutivo</div><h2 class="serif">Del plato al EBITDA</h2>
@@ -515,6 +588,7 @@
       ${chartCard("ch-res-1", "Cascada del resultado · " + periodoNombre(), "De la venta al EBITDA: cuánto se queda en cada escalón (US$)", "tall")}
       ${insightsCard(ins)}
     </div>
+    ${comparativoEscenarios()}
     ${calcResumen()}
     <div class="grid c2">
       ${chartCard("ch-res-2", "Ventas mensuales", `Actual ${CONFIG.anio} vs presupuesto vs ${CONFIG.anioAnterior} (US$)`)}
@@ -542,6 +616,7 @@
         scales: { x: axisX({ ticks: { maxRotation: 0, autoSkip: false, padding: 6 } }), y: axisY(fmtMoneyC, { beginAtZero: true }) } }
     });
     chartActPptoAA("ch-res-2", seriesTres("ventas"), fmtMoneyC);
+    chartEscenarios("ch-res-4");
     const mg = ratioMensual("gop", "ventas", 100), me = ratioMensual("ebitda", "ventas", 100);
     mkChart("ch-res-3", {
       type: "line",
@@ -609,7 +684,7 @@
     const ins = [
       `<b>${fmtInt(t.act)}</b> clientes atendidos en ${periodoNombre()}: <b>${varPct(t.act, t.ppto) > 0 ? "+" : ""}${varPct(t.act, t.ppto).toFixed(1)} %</b> vs presupuesto y <b>${varPct(t.act, t.aa) > 0 ? "+" : ""}${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}.`,
       `El fin de semana concentra <b>${finde.toFixed(0)} %</b> de los covers; la cena de viernes y sábado es la franja de mayor demanda y donde la capacidad de salón y cocina marca el techo de venta.`,
-      `La venta crece <b>${varPct(v.act, v.aa).toFixed(1)} %</b> y los covers <b>${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}: la diferencia es ticket y mix. Leer la demanda por día y franja permite dimensionar turnos y compras.`
+      `La venta ${varPct(v.act, v.aa) >= 0 ? "crece" : "cae"} <b>${Math.abs(varPct(v.act, v.aa)).toFixed(1)} %</b> y los covers ${varPct(t.act, t.aa) >= 0 ? "crecen" : "caen"} <b>${Math.abs(varPct(t.act, t.aa)).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}: la diferencia es ticket y mix. Leer la demanda por día y franja permite dimensionar turnos y compras.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "covers")}
       ${tresTiles(t, fmtInt)}
@@ -639,7 +714,7 @@
     const cv = totales("covers");
     const ins = [
       `Ticket promedio de <b>${fmtDec(t.act)}</b> por cliente: <b>${varPct(t.act, t.ppto) > 0 ? "+" : ""}${varPct(t.act, t.ppto).toFixed(1)} %</b> vs presupuesto y <b>${varPct(t.act, t.aa) > 0 ? "+" : ""}${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}.`,
-      `Las ventas adicionales aportan <b>${fmtDec(adAct)}</b> por cover (${fmtDec(adAct - adPpto)} sobre el presupuesto y ${fmtDec(adAct - adAA)} sobre ${CONFIG.anioAnterior}), lideradas por bebidas, vinos y cocteles.`,
+      `Las ventas adicionales aportan <b>${fmtDec(adAct)}</b> por cover (${fmtDec(Math.abs(adAct - adPpto))} ${adAct >= adPpto ? "sobre" : "bajo"} el presupuesto y ${fmtDec(Math.abs(adAct - adAA))} ${adAct >= adAA ? "sobre" : "bajo"} ${CONFIG.anioAnterior}), ${adAct >= adPpto ? "lideradas por bebidas, vinos y cocteles" : "señal de que la venta sugerida no se está aplicando en sala"}.`,
       `Cada <b>${fmtDec(1)}</b> adicional de ticket equivale a <b>${fmtMoney(cv.act)}</b> de venta incremental en el periodo sin atender un cliente más: la venta sugerida es la palanca más rentable.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "check")}
@@ -674,7 +749,7 @@
     const mermaPct = (merma / v.act) * 100;
     const ins = [
       `Costo de A&B de <b>${fmtPct(t.act)}</b> sobre la venta (${fmtMoney(tm.act)}): <b>${fmtPP(t.act - t.ppto)}</b> vs presupuesto y <b>${fmtPP(t.act - t.aa)}</b> vs ${CONFIG.anioAnterior}. ${t.act <= t.ppto ? "Cada punto por debajo del presupuesto es margen protegido." : "Cada punto por encima del presupuesto erosiona el GOP."}`,
-      `<b>${CONFIG.mesesLargo[pico]}</b> marcó el pico de costo (${fmtPct(s.act[pico])}) por mermas y ajustes de inventario en temporada alta; el plan de porcionado y conteo semanal corrigió la tendencia.`,
+      `<b>${CONFIG.mesesLargo[pico]}</b> marcó el pico de costo (${fmtPct(s.act[pico])}) por mermas y ajustes de inventario en temporada alta; ${s.act[s.act.length - 1] < t.ppto ? "el plan de porcionado y conteo semanal corrigió la tendencia" : "la tendencia aún no se corrige: urge un plan de porcionado y conteo semanal"}.`,
       `Las mermas y desperdicios suman <b>${fmtPct(mermaPct)}</b> de la venta (${fmtMoney(merma)}); cada 0,1 pp equivale a <b>${fmtMoney(v.act * 0.001)}</b>. Compras, recepción, almacenamiento y porcionado son los cuatro frentes de control.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "costo")}
@@ -710,7 +785,7 @@
     const ins = [
       `GOP de <b>${fmtMoney(t.act)}</b> con margen de <b>${fmtPct(mg.act)}</b>: <b>${varPct(t.act, t.ppto) > 0 ? "+" : ""}${varPct(t.act, t.ppto).toFixed(1)} %</b> vs presupuesto y <b>${varPct(t.act, t.aa) > 0 ? "+" : ""}${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}.`,
       `Los gastos controlables (costo F&B, planilla y otros) representan <b>${fmtPct(ctrlAct)}</b> de la venta frente a ${fmtPct(ctrlPpto)} presupuestado (${fmtPP(ctrlAct - ctrlPpto)}): la planilla es <b>${fmtPct((pl.act / v.act) * 100)}</b> y el costo F&B <b>${fmtPct((co.act / v.act) * 100)}</b>.`,
-      `Planilla ${pl.act <= pl.ppto ? "dentro" : "por encima"} del presupuesto (${fmtMoney(pl.act)} vs ${fmtMoney(pl.ppto)}); con la venta por encima del plan, el apalancamiento operativo convierte cada dólar adicional en más GOP.`
+      `Planilla ${pl.act <= pl.ppto ? "dentro" : "por encima"} del presupuesto (${fmtMoney(pl.act)} vs ${fmtMoney(pl.ppto)}); ${v.act >= v.ppto ? "con la venta por encima del plan, el apalancamiento operativo convierte cada dólar adicional en más GOP" : "con la venta por debajo del plan, los gastos fijos pesan más y el margen se comprime"}.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "gop")}
       ${tresTiles(t, fmtMoney)}
@@ -742,7 +817,7 @@
     const pico = s.act.indexOf(Math.max(...s.act)), mejorM = ms.act.indexOf(Math.max(...ms.act));
     const ins = [
       `EBITDA de <b>${fmtMoney(t.act)}</b> y margen de <b>${fmtPct(me.act)}</b>: <b>${varPct(t.act, t.ppto) > 0 ? "+" : ""}${varPct(t.act, t.ppto).toFixed(1)} %</b> vs presupuesto y <b>${varPct(t.act, t.aa) > 0 ? "+" : ""}${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}.`,
-      `El margen EBITDA mejora <b>${fmtPP(me.act - me.aa)}</b> frente a ${CONFIG.anioAnterior} y <b>${fmtPP(me.act - me.ppto)}</b> frente al plan; cada punto de margen equivale a <b>${fmtMoney(v.act / 100)}</b> en el periodo.`,
+      `El margen EBITDA ${me.act >= me.aa ? "mejora" : "cae"} <b>${fmtPP(me.act - me.aa)}</b> frente a ${CONFIG.anioAnterior} y queda <b>${fmtPP(me.act - me.ppto)}</b> frente al plan; cada punto de margen equivale a <b>${fmtMoney(v.act / 100)}</b> en el periodo.`,
       `<b>${CONFIG.mesesLargo[pico]}</b> generó el mayor EBITDA (${fmtMoneyC(s.act[pico])}) y <b>${CONFIG.mesesLargo[mejorM]}</b> el mejor margen (${fmtPct(ms.act[mejorM])}): la temporada alta diluye los gastos fijos y multiplica el resultado.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "ebitda")}
@@ -767,7 +842,7 @@
     const porOutlet = OUTLETS.map(o => ({ o, v: avg(GSI.porOutlet[o.id]) })).sort((a, b) => b.v - a.v);
     const dims = GSI.dimensiones.map((d, i) => ({ d, v: avg(OUTLETS.map(o => GSI.porOutlet[o.id][i])) })).sort((a, b) => a.v - b.v);
     const ins = [
-      `GSI consolidado de <b>${act.toFixed(2)}</b> sobre 10 (${GSI.encuestas.toLocaleString("en-US")} encuestas válidas): ${act >= GSI.meta ? "cumple" : "aún por debajo de"} la meta de ${GSI.meta.toFixed(1)} y mejora <b>${(act - aa).toFixed(2)} puntos</b> frente a ${CONFIG.anioAnterior}.`,
+      `GSI consolidado de <b>${act.toFixed(2)}</b> sobre 10 (${GSI.encuestas.toLocaleString("en-US")} encuestas válidas): ${act >= GSI.meta ? "cumple" : "aún por debajo de"} la meta de ${GSI.meta.toFixed(1)} y ${act >= aa ? "mejora" : "cae"} <b>${Math.abs(act - aa).toFixed(2)} puntos</b> frente a ${CONFIG.anioAnterior}.`,
       `<b>${esc(porOutlet[0].o.nombre)}</b> es el outlet mejor evaluado (${porOutlet[0].v.toFixed(2)}); <b>${esc(porOutlet[porOutlet.length - 1].o.nombre)}</b> concentra la oportunidad (${porOutlet[porOutlet.length - 1].v.toFixed(2)}).`,
       `La dimensión más baja es <b>${esc(dims[0].d)}</b> (${dims[0].v.toFixed(2)}): el cliente valora la comida y el ambiente, pero exige coherencia entre precio, porción y servicio. Cada comentario se convierte en una acción con responsable y fecha.`
     ];
@@ -827,9 +902,9 @@
     const resUlt = S.sostenibilidad.residuosSegregadosPct[8];
     const ac = S.accionesCorrectivas;
     const ins = [
-      `Cumplimiento de controles de <b>${fmtPct(cumAct)}</b> (meta ${S.metaCumplimiento} %) y <b>${incAct} incidencias</b> en el periodo, <b>${Math.round((1 - incAct / incAA) * 100)} % menos</b> que en ${CONFIG.anioAnterior}; la temperatura sigue siendo el tipo más frecuente.`,
-      `<b>${ac.cerradas} de ${ac.cerradas + ac.abiertas}</b> acciones correctivas cerradas (${Math.round((ac.cerradas / (ac.cerradas + ac.abiertas)) * 100)} %); la capacitación BPM/HACCP (${S.controles[5].cumplimiento} %) es el control pendiente que más impacta en el resto.`,
-      `La merma baja de <b>${fmtPct(mermaIni)}</b> a <b>${fmtPct(mermaUlt)}</b> de la venta, ya bajo la meta de ${fmtPct(S.sostenibilidad.mermaPct.meta)}; el consumo de agua y energía por cover cae <b>${100 - S.sostenibilidad.aguaIdx[8]} %</b> y <b>${100 - S.sostenibilidad.energiaIdx[8]} %</b>, y la segregación de residuos llega a <b>${resUlt} %</b>.`
+      `Cumplimiento de controles de <b>${fmtPct(cumAct)}</b> (meta ${S.metaCumplimiento} %) y <b>${incAct} incidencias</b> en el periodo, <b>${Math.abs(Math.round((1 - incAct / incAA) * 100))} % ${incAct <= incAA ? "menos" : "más"}</b> que en ${CONFIG.anioAnterior}; ${esc(S.incidencias.tipos[S.incidencias.act.indexOf(Math.max(...S.incidencias.act))]).toLowerCase()} es el tipo más frecuente.`,
+      `<b>${ac.cerradas} de ${ac.cerradas + ac.abiertas}</b> acciones correctivas cerradas (${Math.round((ac.cerradas / (ac.cerradas + ac.abiertas)) * 100)} %); la capacitación BPM/HACCP (${S.controles[5].cumplimiento} %) es el control ${S.controles[5].cumplimiento >= S.metaCumplimiento ? "que sostiene" : "pendiente que más impacta en"} el resto.`,
+      `La merma ${mermaUlt <= mermaIni ? "baja" : "sube"} de <b>${fmtPct(mermaIni)}</b> a <b>${fmtPct(mermaUlt)}</b> de la venta, ${mermaUlt <= S.sostenibilidad.mermaPct.meta ? "ya bajo" : "aún sobre"} la meta de ${fmtPct(S.sostenibilidad.mermaPct.meta)}; el consumo de agua y energía por cover ${S.sostenibilidad.aguaIdx[8] <= 100 ? "cae" : "sube"} <b>${Math.abs(100 - S.sostenibilidad.aguaIdx[8])} %</b> y <b>${Math.abs(100 - S.sostenibilidad.energiaIdx[8])} %</b>, y la segregación de residuos llega a <b>${resUlt} %</b>.`
     ];
     const estadoPill = (e) => `<span class="pill ${e === "Conforme" ? "ok" : e === "Observado" ? "warn" : "bad"}">${e}</span>`;
     return `${sectionHead(sec, sec.seccion, "seguridad")}
@@ -941,6 +1016,8 @@
         <main class="content" id="content"></main>
       </div>`;
     app.addEventListener("click", (e) => {
+      const escBtn = e.target.closest("[data-esc]");
+      if (escBtn) { setEscenario(escBtn.dataset.esc); return; }
       const go = e.target.closest("[data-go]");
       if (go) { navigate(go.dataset.go); return; }
       const act = e.target.closest("[data-act]");
@@ -966,7 +1043,10 @@
     const mesSel = `<div class="control"><label for="sel-mes">Periodo</label><select id="sel-mes">
       <option value="ytd" ${state.mes === "ytd" ? "selected" : ""}>YTD Ene–Sep ${CONFIG.anio}</option>
       ${CONFIG.mesesLargo.map((m, k) => `<option value="${k}" ${String(k) === state.mes ? "selected" : ""}>${m} ${CONFIG.anio}</option>`).join("")}</select></div>`;
+    const escSel = `<div class="control scen" role="group" aria-label="Escenario de prueba"><label>Escenario</label>
+      ${["real", "eficiente", "deficiente"].map(id => `<button type="button" data-esc="${id}" class="${id === ESCENARIO_ACTIVO ? `on ${id}` : ""}" aria-pressed="${id === ESCENARIO_ACTIVO}">${ESCENARIOS[id].nombre}</button>`).join("")}</div>`;
     document.getElementById("controls").innerHTML = `
+      ${state.view !== "portada" ? escSel : ""}
       ${v.filtros === true || v.filtros === "outlet" ? outletSel : ""}
       ${v.filtros === true ? mesSel : ""}
       <button class="icon-btn" data-act="prev" title="Anterior (←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
@@ -982,7 +1062,7 @@
     document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.go === state.view));
     renderControls();
     const content = document.getElementById("content");
-    content.innerHTML = v.html();
+    content.innerHTML = (state.view !== "portada" ? bannerEscenario() : "") + v.html();
     content.scrollTop = 0; window.scrollTo({ top: 0 });
     if (v.charts) requestAnimationFrame(() => v.charts());
     document.title = `${NAV[ORDER.indexOf(state.view)].label} · ${CONFIG.titulo}`;

@@ -45,6 +45,7 @@ Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula
 ## Uso durante la exposición
 
 - Flechas `←` `→` (o PageUp/PageDown) para avanzar entre secciones; `Home` vuelve a la portada.
+- Selector **Escenario** (Real · Eficiente · Deficiente): simula los resultados "Actual" de una empresa eficiente o deficiente con el mismo presupuesto y año anterior; todo el dashboard (KPIs, fórmulas, gráficos, GSI y seguridad) se recalcula. El Resumen ejecutivo incluye el comparativo lado a lado. Los supuestos de cada escenario están en `ESCENARIOS` dentro de `data.js`.
 - `M` o el botón ☰ oculta/muestra el menú lateral para usar todo el ancho de la pantalla (se recuerda en el navegador).
 - `F` o el botón ⛶ activa el modo presentación (pantalla completa).
 - Filtros de **Outlet** (Consolidado, Restaurante, Bar, Room Service, Banquetes) y **Periodo** (YTD o un mes).
