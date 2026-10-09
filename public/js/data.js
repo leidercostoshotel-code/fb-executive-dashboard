@@ -233,7 +233,7 @@ const REFERENCIAS = {
   margenGOP:    { tipo: "min", verde: 30, ambar: 25, unidad: "%" },
   margenEBITDA: { tipo: "min", verde: 25, ambar: 20, unidad: "%" },
   ventasPpto:   { tipo: "min", verde: 100, ambar: 97, unidad: "%" },
-  merma:        { tipo: "max", verde: 2.0, ambar: 2.5, unidad: "%" },
+  merma:        { tipo: "max", verde: 1.8, ambar: 2.2, unidad: "%" },
   gsi:          { tipo: "min", verde: 8.6, ambar: 8.3, unidad: "pts" },
   inocuidad:    { tipo: "min", verde: 95, ambar: 90, unidad: "%" }
 };
@@ -289,7 +289,7 @@ const SECCIONES = {
     puntos: ["Ticket promedio real vs. presupuesto", "Ticket promedio vs. año anterior", "Impacto del mix y las ventas adicionales"], formula: "AVERAGE CHECK = ventas ÷ covers" },
   costo: { num: "04", titulo: "Food & Beverage Cost", intro: "Controlar el costo protege el margen sin perder de vista la calidad ni la experiencia.",
     puntos: ["Costo real vs. presupuesto", "Costo vs. año anterior", "Compras, porcionado, inventarios y mermas/desperdicios"], formula: "COSTO % = costo de consumo ÷ ventas × 100" },
-  gop: { num: "05", titulo: "GOP", intro: "El GOP permite evaluar el resultado operativo antes de ciertos gastos no operativos.",
+  gop: { num: "05", titulo: "GOP", intro: "El GOP (utilidad operativa bruta) muestra cuánto queda de la venta después de pagar el costo, la planilla y los gastos de la operación.",
     puntos: ["GOP real vs. presupuesto", "GOP vs. año anterior", "Seguimiento de ingresos y gastos controlables"], formula: "GOP = ingresos operativos − gastos operativos" },
   ebitda: { num: "06", titulo: "EBITDA", intro: "El EBITDA ayuda a observar la capacidad de generar resultado operativo antes de intereses, impuestos, depreciación y amortización.",
     puntos: ["EBITDA real vs. presupuesto", "EBITDA vs. año anterior", "Margen EBITDA y evolución mensual"], formula: "MARGEN EBITDA = EBITDA ÷ ingresos × 100" },
@@ -299,6 +299,9 @@ const SECCIONES = {
   simulacion: { seccion: "Simulación", titulo: "De la receta a la utilidad", intro: "Crea la receta de un plato y de una bebida, fija su precio para un hotel 5 estrellas y sigue cada dólar desde la venta hasta la utilidad del producto. Datos simulados con fines didácticos.",
     puntos: ["Receta estándar y costo por porción", "Precio de venta y precio al cliente final", "Estado de resultados por producto y sensibilidad de los costos"], formula: "UTILIDAD = VENTAS − COSTO − GASTOS",
     nota: "Edita cualquier dato: todo se recalcula al instante" },
+  glosario: { seccion: "Consulta", titulo: "Glosario de términos", intro: "Las siglas y conceptos del dashboard explicados en lenguaje sencillo, con su fórmula. Escribe en el buscador para encontrar un término.",
+    puntos: ["Siglas: A&B, YTD, GOP, EBITDA, GSI", "Costos: food cost, beverage cost, prime cost", "Cómo leer variaciones: % y puntos porcentuales"], formula: "A&B = Alimentos y Bebidas (F&B en inglés)",
+    nota: "Úsalo como apoyo durante la exposición o la clase" },
   semaforo: { seccion: "Diagnóstico", titulo: "Semáforo de rentabilidad", intro: "Los indicadores que definen si la operación es rentable, comparados con rangos de referencia sanos para A&B de hotel.",
     puntos: ["Costos: food cost, beverage cost y prime cost", "Márgenes: GOP y EBITDA", "Palancas: ventas, mermas, satisfacción e inocuidad"], formula: "PRIME COST = (costo A&B + planilla) ÷ ventas × 100",
     nota: "Verde: sano · ámbar: vigilar · rojo: actuar" },

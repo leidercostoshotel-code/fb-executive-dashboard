@@ -363,6 +363,21 @@ b.pos, .pos { color: #0a7a0a; } b.neg, .neg { color: #a52d2d; }
 .sim-sens .grid.split { margin-top: 18px; grid-template-columns: 1fr; }
 @media (max-width: 1700px) { .grid.c2.sim-prods { grid-template-columns: 1fr; } }
 
+/* ---------- Glosario y sumandos con etiqueta ---------- */
+.term { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.term small { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.kpi-legend { margin-top: -6px; }
+.glos-search { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.glos-search input { flex: 1; min-width: 240px; font: inherit; font-size: 15px; padding: 10px 14px; border: 1px solid #cfd5df; border-radius: 8px; outline: none; }
+.glos-search input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 3px rgba(39,64,95,.12); }
+.glos-search span { color: var(--text-3); font-size: 13.5px; }
+.glos-table th, .glos-table td { text-align: left; vertical-align: middle; }
+.glos-table td.t { font-weight: 600; color: var(--navy-900); white-space: nowrap; width: 22%; }
+.glos-table td.txt { font-size: 14.5px; line-height: 1.5; color: var(--text-2); }
+.glos-table td.f { white-space: nowrap; font-size: 14px; color: var(--text-2); width: 30%; }
+.glos-table tbody tr:nth-child(odd) td { background: #fafbfd; }
+@media (max-width: 860px) { .glos-table td.t, .glos-table td.f { white-space: normal; } }
+
 /* ---------- Escenarios de prueba ---------- */
 .scen-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
