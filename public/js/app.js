@@ -19,7 +19,8 @@
     { id: "gsi", label: "Resultados de GSI", group: "Experiencia del cliente" },
     { id: "seguridad", label: "Seguridad y Sostenibilidad", group: "Responsabilidad operativa" },
     { id: "semaforo", label: "Semáforo de rentabilidad", group: "Diagnóstico" },
-    { id: "simulacion", label: "Simulación", group: "Práctica", cls: "sim" }
+    { id: "simulacion", label: "Simulación", group: "Práctica", cls: "sim" },
+    { id: "glosario", label: "Glosario", group: "Consulta" }
   ];
   const ORDER = NAV.map(n => n.id);
   const CSS = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -189,7 +190,7 @@
         deltas: deltaPill(t.act, t.ppto, "vs presupuesto", { invert: inv, pp }) + deltaPill(t.act, t.aa, `vs ${CONFIG.anioAnterior}`, { invert: inv, pp }) })}
       ${tile({ label: "Presupuesto", value: fmt(t.ppto), color: c.ppto, meta: "Meta aprobada para el periodo" })}
       ${tile({ label: `Año anterior ${CONFIG.anioAnterior}`, value: fmt(t.aa), color: c.aa, meta: "Mismo periodo del año anterior",
-        deltas: deltaPill(t.ppto, t.aa, `ppto vs ${CONFIG.anioAnterior}`, { invert: inv, pp }) })}
+        deltas: deltaPill(t.ppto, t.aa, `presupuesto sobre ${CONFIG.anioAnterior}`, { invert: inv, pp }) })}
     </div>`;
   }
   function sectionHead(sec, kicker, id) {
@@ -236,10 +237,11 @@
   /* Sumandos de un campo: por outlet (consolidado) o por mes (un outlet) */
   function sumandos(campo, k, fmtN) {
     const ids = outletIds(), idx = mesIdx();
-    if (ids.length > 1) return ids.map(id => fmtN(sum(idx.map(i => SERIES[id][i][campo][k]))));
-    return idx.map(i => fmtN(SERIES[ids[0]][i][campo][k]));
+    const term = (v, etq) => `<span class="term"><span>${fmtN(v)}</span><small>${esc(etq)}</small></span>`;
+    if (ids.length > 1) return ids.map(id => term(sum(idx.map(i => SERIES[id][i][campo][k])), OUTLETS.find(o => o.id === id).corto));
+    return idx.map(i => term(SERIES[ids[0]][i][campo][k], CONFIG.meses[i]));
   }
-  const sumandosTxt = (campo, k, fmtN) => sumandos(campo, k, fmtN).join(" + ");
+  const sumandosTxt = (campo, k, fmtN) => sumandos(campo, k, fmtN).join(`<span class="op">+</span>`);
   const nivelSuma = () => (outletIds().length > 1 ? "de cada outlet" : mesIdx().length > 1 ? "de cada mes" : "del mes");
 
   /* Variaciones con su fórmula: % (relativa) o pp (diferencia de puntos) */
@@ -263,7 +265,8 @@
       <td class="r">${resPill(r.result, r.good === undefined ? "" : r.good ? "good" : "bad")}</td></tr>`).join("")}</tbody></table></div>`;
   }
 
-  function calcCard({ formula, vars = [], rows, rowsTitle = "Sustitución con los datos del periodo", variations = [], extra = "", nota = "", detalle = "", detalleTitulo = "Ver cálculo detallado" }) {
+  function calcCard({ formula, vars = [], rows, rowsTitle = "Sustitución con los datos del periodo", variations = [], extra = "", nota = "", detalle = "", detalleTitulo = "Ver cálculo detallado",
+    leyenda = `Ppto = presupuesto · AA = año anterior ${CONFIG.anioAnterior} · pp = puntos porcentuales. Verde: favorable · rojo: desfavorable.` }) {
     let n = 0;
     const step = (title, body) => `<div class="step"><div class="step-n">${++n}</div><div class="step-b"><h4>${title}</h4>${body}</div></div>`;
     return `<div class="card calc">
@@ -271,7 +274,7 @@
       <div class="card-sub">Fórmula, sustitución con los datos de ${esc(outletNombre())} · ${periodoNombre()} y resultado</div>
       ${step("Fórmula", `<div class="formula-big">${formula}</div>${vars.length ? `<dl class="vars">${vars.map(([k, d]) => `<div><dt>${k}</dt><dd>${d}</dd></div>`).join("")}</dl>` : ""}`)}
       ${step(rowsTitle, calcTable(rows) + extra)}
-      ${variations.length ? step("Variaciones", calcTable(variations) + `<p class="legend-note">Ppto = presupuesto · AA = año anterior ${CONFIG.anioAnterior}. Verde: favorable · rojo: desfavorable.</p>`) : ""}
+      ${variations.length ? step("Variaciones", calcTable(variations) + `<p class="legend-note">${leyenda}</p>`) : ""}
       ${nota ? `<div class="calc-note"><b>Nota metodológica.</b> ${nota}</div>` : ""}
       ${detalle ? `<details class="calc-detail"><summary>${detalleTitulo}</summary><div class="table-scroll">${detalle}</div></details>` : ""}
     </div>`;
@@ -315,7 +318,8 @@
     return `<table class="pl"><thead><tr><th>Concepto</th><th>Actual ${CONFIG.anio}</th><th>% venta</th><th>Presupuesto</th><th>% venta</th><th>Año ant. ${CONFIG.anioAnterior}</th><th>% venta</th><th>Var. % vs Ppto</th></tr></thead><tbody>
       ${lineas.map(([n, x, gasto, sub]) => { const d = varPct(x.act, x.ppto), good = gasto ? d <= 0 : d >= 0;
         return `<tr class="${sub ? "sub" : ""}"><td>${n}</td><td>${fmtMoney(x.act)}</td><td>${pct(x, "act")}</td><td>${fmtMoney(x.ppto)}</td><td>${pct(x, "ppto")}</td><td>${fmtMoney(x.aa)}</td><td>${pct(x, "aa")}</td><td class="${good ? "pos" : "neg"}">${signo(d)} %</td></tr>`; }).join("")}
-    </tbody></table>`;
+    </tbody></table>
+    <p class="legend-note">Cómo leerlo: los costos y gastos pueden subir en US$ simplemente porque se vendió más; lo que se gestiona es su <b>% sobre la venta</b>. Por eso un gasto puede figurar en rojo en "Var. % vs Ppto" y, a la vez, bajar como % de la venta.</p>`;
   }
 
   /* ---- Fórmulas de cada indicador con los datos del filtro activo ---- */
@@ -432,7 +436,7 @@
       rows: escenarios().map(e => ({ label: e.label, color: e.color, expr: `<span class="math">${fmtMoney(v[e.k])} − ${fmtMoney(co[e.k])} − ${fmtMoney(pl[e.k])} − ${fmtMoney(ot[e.k])}</span>`, result: fmtMoney(g[e.k]) })),
       extra: `<h5 class="sub-step">Margen GOP</h5>${calcTable(escenarios().map(e => ({ label: e.label, color: e.color, expr: `<span class="math">${frac(fmtMoney(g[e.k]), fmtMoney(v[e.k]))} × 100</span>`, result: fmtPct(mg[e.k], 2) })))}`,
       variations: [...variaciones(g, fmtMoney), ...variaciones(mg, (x) => fmtPct(x, 2), { pp: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Margen: variación") }))],
-      nota: "El GOP (Gross Operating Profit) mide el resultado de la operación antes de los gastos no distribuidos. El margen permite comparar periodos y outlets de distinto tamaño.",
+      nota: "El GOP (Gross Operating Profit, utilidad operativa bruta) mide el resultado de la operación antes de los gastos no distribuidos. El margen permite comparar periodos y outlets de distinto tamaño. <br><b>Nota de terminología:</b> en el sistema contable hotelero USALI (Uniform System of Accounts for the Lodging Industry), el resultado de un departamento como A&amp;B se denomina <b>utilidad departamental</b>, y el GOP se calcula para todo el hotel restando a la suma de departamentos los gastos no distribuidos. Este dashboard aplica la misma lógica al área de A&amp;B con fines de gestión.",
       detalle: estadoResultados(), detalleTitulo: "Ver estado de resultados (Ventas → GOP → EBITDA)"
     });
   }
@@ -446,7 +450,7 @@
       rows: escenarios().map(x => ({ label: x.label, color: x.color, expr: `<span class="math">${fmtMoney(g[x.k])} − ${fmtMoney(nd[x.k])}</span>`, result: fmtMoney(e[x.k]) })),
       extra: `<h5 class="sub-step">Margen EBITDA</h5>${calcTable(escenarios().map(x => ({ label: x.label, color: x.color, expr: `<span class="math">${frac(fmtMoney(e[x.k]), fmtMoney(v[x.k]))} × 100</span>`, result: fmtPct(me[x.k], 2) })))}`,
       variations: [...variaciones(e, fmtMoney), ...variaciones(me, (x) => fmtPct(x, 2), { pp: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Margen: variación") }))],
-      nota: "En este modelo de gestión el EBITDA del área se obtiene restando al GOP los gastos no distribuidos asignados. Al excluir depreciación, amortización, intereses e impuestos, refleja la capacidad de la operación de generar caja.",
+      nota: "En este modelo de gestión el EBITDA del área se obtiene restando al GOP los gastos no distribuidos asignados. Al excluir depreciación, amortización, intereses e impuestos, refleja la capacidad de la operación de generar caja. <br><b>Nota de terminología:</b> en el USALI, el EBITDA se calcula para todo el hotel: al GOP se le restan además los honorarios de gestión y los gastos fijos (alquileres, impuestos a la propiedad y seguros). Aquí se usa una versión simplificada para el área de A&amp;B.",
       detalle: estadoResultados(), detalleTitulo: "Ver estado de resultados (Ventas → GOP → EBITDA)"
     });
   }
@@ -467,6 +471,7 @@
         { label: "Diferencia vs meta", expr: eq("GSI − Meta", `${act.toFixed(2)} − ${GSI.meta.toFixed(2)}`), result: `${signo(act - GSI.meta, 2)} pts`, good: act >= GSI.meta },
         { label: `Diferencia vs ${CONFIG.anioAnterior}`, expr: eq(`GSI ${CONFIG.anio} − GSI ${CONFIG.anioAnterior}`, `${act.toFixed(2)} − ${aa.toFixed(2)}`), result: `${signo(act - aa, 2)} pts`, good: act >= aa }
       ],
+      leyenda: "pts = puntos de la escala de 1 a 10. Verde: favorable · rojo: desfavorable.",
       nota: `El GSI acumulado se obtiene como promedio simple de los ${n} meses. Si el número de encuestas varía mucho entre meses, conviene ponderar cada mes por su número de calificaciones (${GSI.encuestas.toLocaleString("en-US")} en total).`
     });
   }
@@ -490,6 +495,7 @@
         { label: "Cumplimiento vs meta", expr: eq("Cumplimiento − Meta", `${fmtPct(cumAct)} − ${S.metaCumplimiento} %`), result: `${signo(cumAct - S.metaCumplimiento)} pp`, good: cumAct >= S.metaCumplimiento },
         { label: `Incidencias vs ${CONFIG.anioAnterior}`, expr: eq(`${frac(`Inc. ${CONFIG.anio} − Inc. ${CONFIG.anioAnterior}`, `Inc. ${CONFIG.anioAnterior}`)} × 100`, `${frac(`${incAct} − ${incAA}`, incAA)} × 100`), result: `${signo(varPct(incAct, incAA))} %`, good: incAct <= incAA }
       ],
+      leyenda: "pp = puntos porcentuales (diferencia entre dos porcentajes). Verde: favorable · rojo: desfavorable.",
       nota: `El cumplimiento acumulado es el promedio de los ${n} porcentajes mensuales. Las incidencias se suman por tipo (${S.incidencias.tipos.join(", ").toLowerCase()}); una reducción frente al año anterior es favorable.`
     });
   }
@@ -603,7 +609,7 @@
         <div class="agenda">${agenda}</div>
       </div>
     </section>
-    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Enter o flechas → para avanzar · Shift + Enter o ← para volver · M oculta el menú · F pantalla completa</div>`;
+    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Enter o flechas → para avanzar · Shift + Enter o ← para volver · M oculta el menú · F pantalla completa · Glosario de términos al final del menú</div>`;
   }
 
   function viewResumen() {
@@ -630,6 +636,7 @@
       ${mini("05", "gop", "GOP", fmtMoneyC(g.act), g.act, g.ppto, g.aa)}
       ${mini("06", "ebitda", "EBITDA", fmtMoneyC(e.act), e.act, e.ppto, e.aa)}
     </div>
+    <p class="legend-note kpi-legend">Ppto = variación frente al presupuesto · ${CONFIG.anioAnterior} = frente al mismo periodo del año anterior · % = variación relativa · pp = puntos porcentuales · ▲▼ verde: favorable, rojo: desfavorable. Haz clic en un indicador para ver su detalle.</p>
     <div class="grid split">
       ${chartCard("ch-res-1", "Cascada del resultado · " + periodoNombre(), "De la venta al EBITDA: cuánto se queda en cada escalón (US$)", "tall")}
       ${insightsCard(ins)}
@@ -843,7 +850,7 @@
     const ins = [
       `GOP de <b>${fmtMoney(t.act)}</b> con margen de <b>${fmtPct(mg.act)}</b>: <b>${varPct(t.act, t.ppto) > 0 ? "+" : ""}${varPct(t.act, t.ppto).toFixed(1)} %</b> vs presupuesto y <b>${varPct(t.act, t.aa) > 0 ? "+" : ""}${varPct(t.act, t.aa).toFixed(1)} %</b> vs ${CONFIG.anioAnterior}.`,
       `Los gastos controlables (costo F&B, planilla y otros) representan <b>${fmtPct(ctrlAct)}</b> de la venta frente a ${fmtPct(ctrlPpto)} presupuestado (${fmtPP(ctrlAct - ctrlPpto)}): la planilla es <b>${fmtPct((pl.act / v.act) * 100)}</b> y el costo F&B <b>${fmtPct((co.act / v.act) * 100)}</b>.`,
-      `Planilla ${pl.act <= pl.ppto ? "dentro" : "por encima"} del presupuesto (${fmtMoney(pl.act)} vs ${fmtMoney(pl.ppto)}); ${v.act >= v.ppto ? "con la venta por encima del plan, el apalancamiento operativo convierte cada dólar adicional en más GOP" : "con la venta por debajo del plan, los gastos fijos pesan más y el margen se comprime"}.`
+      `Planilla de ${fmtMoney(pl.act)} frente a ${fmtMoney(pl.ppto)} presupuestados (${signo(varPct(pl.act, pl.ppto))} % en US$); como % de la venta pasa de ${fmtPct((pl.ppto / v.ppto) * 100)} a <b>${fmtPct((pl.act / v.act) * 100)}</b>${(pl.act / v.act) <= (pl.ppto / v.ppto) ? ", es decir, más productividad por cada dólar de planilla" : ", es decir, la planilla crece más que la venta"}; ${v.act >= v.ppto ? "con la venta por encima del plan, el apalancamiento operativo convierte cada dólar adicional en más GOP" : "con la venta por debajo del plan, los gastos fijos pesan más y el margen se comprime"}.`
     ];
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "gop")}
       ${tresTiles(t, fmtMoney)}
@@ -906,7 +913,7 @@
     ];
     return `${sectionHead(sec, sec.seccion, "gsi")}
       <div class="grid c3">
-        ${tile({ label: `GSI Actual ${CONFIG.anio}`, value: act.toFixed(2), hero: true, color: c.act, meta: `Promedio de ${GSI.encuestas.toLocaleString("en-US")} calificaciones válidas · Escala 1–10`, deltas: deltaPill(act, GSI.meta, "vs meta", { pp: true, dec: 2, unit: "pts" }) + deltaPill(act, aa, `vs ${CONFIG.anioAnterior}`, { pp: true, dec: 2, unit: "pts" }) })}
+        ${tile({ label: `GSI Actual ${CONFIG.anio}`, value: act.toFixed(2), hero: true, color: c.act, meta: `Promedio de los 9 meses · ${GSI.encuestas.toLocaleString("en-US")} encuestas válidas · Escala 1–10`, deltas: deltaPill(act, GSI.meta, "vs meta", { pp: true, dec: 2, unit: "pts" }) + deltaPill(act, aa, `vs ${CONFIG.anioAnterior}`, { pp: true, dec: 2, unit: "pts" }) })}
         ${tile({ label: "Meta", value: GSI.meta.toFixed(2), color: c.ppto, meta: "Objetivo de satisfacción del año" })}
         ${tile({ label: `Año anterior ${CONFIG.anioAnterior}`, value: aa.toFixed(2), color: c.aa, meta: "Promedio del mismo periodo" })}
       </div>
@@ -1474,6 +1481,70 @@
     simUpdate();
   }
 
+  /* ================= Glosario: términos en lenguaje sencillo ================= */
+  const GLOSARIO = [
+    ["Siglas", "A&amp;B / F&amp;B", "Alimentos y Bebidas (en inglés, Food &amp; Beverage). Es el área del hotel que opera restaurantes, bar, room service y banquetes.", ""],
+    ["Siglas", "Outlet", "Cada punto de venta del área: restaurante, bar, room service o banquetes.", ""],
+    ["Siglas", "YTD (Year To Date)", "Acumulado del año hasta la fecha. Aquí, de enero a septiembre.", "Ene + Feb + … + Sep"],
+    ["Comparación", "Presupuesto (Ppto)", "Meta aprobada al inicio del año para cada indicador. Es la vara contra la que se mide la gestión.", ""],
+    ["Comparación", "Año anterior (AA)", "Mismo periodo del año pasado. Muestra si la operación mejora en el tiempo.", ""],
+    ["Comparación", "Variación %", "Cuánto cambia un valor frente a otro, en porcentaje. Se usa para montos y cantidades.", `${frac("Actual − Referencia", "Referencia")} × 100`],
+    ["Comparación", "Punto porcentual (pp)", "Diferencia simple entre dos porcentajes. Si el costo pasa de 29.5 % a 28.8 %, baja 0.7 pp (no 0.7 %).", "28.8 % − 29.5 % = −0.7 pp"],
+    ["Comparación", "Escenario", "Simulación de cómo se verían los resultados si la empresa operara de forma eficiente o deficiente, con el mismo presupuesto.", ""],
+    ["Ventas", "Ventas netas", "Ingresos del área sin impuestos ni cargo por servicio.", "Covers × Average Check"],
+    ["Ventas", "Covers", "Cantidad de clientes atendidos (un comensal = un cover).", "Σ clientes atendidos"],
+    ["Ventas", "Average Check (ticket promedio)", "Consumo promedio de cada cliente.", frac("Ventas", "Covers")],
+    ["Ventas", "Mix de venta", "Participación de cada producto, canal u outlet en la venta total.", `${frac("Venta del producto", "Venta total")} × 100`],
+    ["Ventas", "Venta sugerida", "Técnica del personal de servicio para ofrecer bebidas, entradas o postres y elevar el ticket.", ""],
+    ["Costos", "Costo de consumo", "Lo que realmente se consumió de alimentos y bebidas en el periodo.", "Inventario inicial + Compras − Inventario final"],
+    ["Costos", "Food cost %", "Costo de los alimentos como porcentaje de la venta de alimentos.", `${frac("Costo de alimentos", "Ventas de alimentos")} × 100`],
+    ["Costos", "Beverage cost %", "Costo de las bebidas como porcentaje de la venta de bebidas.", `${frac("Costo de bebidas", "Ventas de bebidas")} × 100`],
+    ["Costos", "Costo A&amp;B %", "Costo total de alimentos y bebidas sobre la venta total. Es el promedio ponderado del food y el beverage cost.", `${frac("Costo de consumo", "Ventas")} × 100`],
+    ["Costos", "Costo teórico", "Lo que debería costar lo vendido según las recetas estándar.", "Σ (unidades vendidas × costo de receta)"],
+    ["Costos", "Merma", "Producto que se pierde al limpiar, preparar o por desperdicio y vencimiento.", `${frac("Mermas", "Ventas")} × 100`],
+    ["Costos", "Sobreporción", "Servir más cantidad de la que indica la receta estándar: sube el costo sin subir la venta.", ""],
+    ["Costos", "Receta estándar", "Ficha con los insumos, cantidades y procedimiento de cada plato o bebida; permite calcular su costo por porción.", "Σ cantidad × precio ÷ (1 − merma)"],
+    ["Costos", "Planilla", "Sueldos, salarios y cargas sociales del personal del área.", `${frac("Planilla", "Ventas")} × 100`],
+    ["Costos", "Prime cost", "Suma de los dos mayores costos controlables: insumos y personal.", `${frac("Costo A&amp;B + Planilla", "Ventas")} × 100`],
+    ["Costos", "Gastos no distribuidos", "Gastos de soporte asignados al área: administración, marketing, mantenimiento y energía.", ""],
+    ["Resultados", "Margen de contribución", "Lo que deja cada producto después de pagar sus insumos; sirve para la ingeniería de menú.", "Precio − Costo de la receta"],
+    ["Resultados", "GOP (utilidad operativa bruta)", "Lo que queda de la venta después de costo, planilla y otros gastos operativos.", "Ventas − Costo − Planilla − Otros gastos"],
+    ["Resultados", "EBITDA", "Resultado antes de intereses, impuestos, depreciación y amortización: mide la capacidad de generar caja.", "GOP − Gastos no distribuidos"],
+    ["Resultados", "Margen (GOP o EBITDA)", "Qué porcentaje de cada venta se convierte en resultado.", `${frac("Resultado", "Ventas")} × 100`],
+    ["Resultados", "USALI", "Uniform System of Accounts for the Lodging Industry: estándar internacional de contabilidad hotelera que define la utilidad departamental, el GOP y el EBITDA del hotel.", ""],
+    ["Cliente y calidad", "GSI (Guest Satisfaction Index)", "Índice de satisfacción del huésped, en escala de 1 a 10, obtenido de encuestas.", frac("Σ calificaciones válidas", "N.º de calificaciones")],
+    ["Cliente y calidad", "Inocuidad", "Garantía de que los alimentos no causan daño a quien los consume.", `${frac("Controles cumplidos", "Controles programados")} × 100`],
+    ["Cliente y calidad", "BPM / HACCP", "Buenas Prácticas de Manufactura y Análisis de Peligros y Puntos Críticos de Control: sistemas para asegurar la inocuidad.", ""],
+    ["Cliente y calidad", "RevPASH", "Ingreso por asiento disponible por hora: mide el aprovechamiento de la capacidad del salón.", frac("Ventas", "Asientos × horas de servicio")]
+  ];
+  function viewGlosario() {
+    const sec = SECCIONES.glosario, grupos = [...new Set(GLOSARIO.map(g => g[0]))];
+    return `${sectionHead(sec, sec.seccion, "glosario")}
+      <div class="card glos">
+        <div class="glos-search"><input type="search" id="glos-q" placeholder="Buscar un término (por ejemplo: EBITDA, merma, pp)…" aria-label="Buscar en el glosario"><span id="glos-n"></span></div>
+        ${grupos.map(gr => `<div class="glos-group" data-grupo="${esc(gr)}"><h4 class="sim-h">${esc(gr)}</h4>
+          <div class="table-scroll"><table class="glos-table"><thead><tr><th>Término</th><th>Qué significa</th><th>Fórmula o ejemplo</th></tr></thead><tbody>
+          ${GLOSARIO.filter(g => g[0] === gr).map(([, t, d, f]) => `<tr><td class="t">${t}</td><td class="txt">${d}</td><td class="f">${f ? `<span class="math">${f}</span>` : "—"}</td></tr>`).join("")}
+          </tbody></table></div></div>`).join("")}
+      </div>`;
+  }
+  function chartsGlosario() {
+    const q = document.getElementById("glos-q"); if (!q) return;
+    const n = document.getElementById("glos-n");
+    const filtrar = () => {
+      const t = q.value.trim().toLowerCase();
+      let vis = 0;
+      document.querySelectorAll(".glos-group").forEach(gr => {
+        let enGrupo = 0;
+        gr.querySelectorAll("tbody tr").forEach(tr => { const ok = !t || tr.textContent.toLowerCase().includes(t); tr.style.display = ok ? "" : "none"; if (ok) enGrupo++; });
+        gr.style.display = enGrupo ? "" : "none"; vis += enGrupo;
+      });
+      n.textContent = `${vis} de ${GLOSARIO.length} términos`;
+    };
+    q.addEventListener("input", filtrar);
+    filtrar();
+  }
+
   /* ---------------- Registro de vistas ---------------- */
   const VIEWS = {
     portada: { html: viewPortada, charts: null, filtros: false },
@@ -1487,7 +1558,8 @@
     gsi: { html: viewGSI, charts: chartsGSI, filtros: "outlet" },
     seguridad: { html: viewSeguridad, charts: chartsSeguridad, filtros: false },
     semaforo: { html: viewSemaforo, charts: chartsSemaforo, filtros: true },
-    simulacion: { html: viewSimulacion, charts: chartsSimulacion, filtros: false }
+    simulacion: { html: viewSimulacion, charts: chartsSimulacion, filtros: false },
+    glosario: { html: viewGlosario, charts: chartsGlosario, filtros: false }
   };
 
   /* ---------------- Shell: sidebar + topbar ---------------- */
@@ -1555,7 +1627,7 @@
     const escSel = `<div class="control scen" role="group" aria-label="Escenario de prueba"><label>Escenario</label>
       ${["real", "eficiente", "deficiente"].map(id => `<button type="button" data-esc="${id}" class="${id === ESCENARIO_ACTIVO ? `on ${id}` : ""}" aria-pressed="${id === ESCENARIO_ACTIVO}">${ESCENARIOS[id].nombre}</button>`).join("")}</div>`;
     document.getElementById("controls").innerHTML = `
-      ${!["portada", "simulacion"].includes(state.view) ? escSel : ""}
+      ${!["portada", "simulacion", "glosario"].includes(state.view) ? escSel : ""}
       ${v.filtros === true || v.filtros === "outlet" ? outletSel : ""}
       ${v.filtros === true ? mesSel : ""}
       <button class="icon-btn" data-act="prev" title="Anterior (Shift + Enter o ←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
@@ -1575,7 +1647,7 @@
     document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.go === state.view));
     renderControls();
     const content = document.getElementById("content");
-    content.innerHTML = (!["portada", "simulacion"].includes(state.view) ? bannerEscenario() : "") + v.html();
+    content.innerHTML = (!["portada", "simulacion", "glosario"].includes(state.view) ? bannerEscenario() : "") + v.html();
     content.scrollTop = 0; window.scrollTo({ top: 0 });
     if (v.charts) requestAnimationFrame(() => v.charts());
     document.title = `${NAV[ORDER.indexOf(state.view)].label} · ${CONFIG.titulo}`;
