@@ -33,7 +33,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--surface);
   color: var(--text);
   font-size: 15px;
@@ -42,7 +42,7 @@ body {
 }
 button, select { font: inherit; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
-.serif { font-family: "Playfair Display", Georgia, serif; }
+.serif { font-family: inherit; font-weight: 600; letter-spacing: -0.015em; }
 
 /* ---------- Layout ---------- */
 #app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
@@ -55,12 +55,12 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   padding: 26px 18px 18px;
 }
 .brand { padding: 0 10px 22px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 14px; }
-.brand .eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+.brand .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
 .brand h1 { font-size: 22px; color: #fff; margin-top: 6px; line-height: 1.15; }
 .brand p { margin: 6px 0 0; color: #9fb0c9; font-size: 13px; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
-.nav-group { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #6f82a0; padding: 14px 12px 6px; font-weight: 600; }
+.nav-group { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6f82a0; padding: 14px 12px 6px; font-weight: 600; }
 .nav button {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
   background: transparent; border: 0; color: #c8d3e6; padding: 10px 12px;
@@ -99,7 +99,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 
 /* ---------- Encabezado de sección ---------- */
 .section-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; }
-.section-head .kicker { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.section-head .kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
 .section-head h2 { font-size: 34px; margin-top: 6px; line-height: 1.1; }
 .section-head p { margin: 10px 0 0; color: var(--text-2); max-width: 760px; font-size: 16px; }
 .formula {
@@ -107,7 +107,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; letter-spacing: .02em;
   border-left: 4px solid var(--gold); white-space: nowrap;
 }
-.formula small { display: block; font-family: "Inter", sans-serif; color: #9fb0c9; font-size: 11px; margin-top: 4px; letter-spacing: .06em; text-transform: uppercase; }
+.formula small { display: block; font-family: inherit; color: #9fb0c9; font-size: 11px; margin-top: 4px; letter-spacing: .06em; text-transform: uppercase; }
 
 /* ---------- Tarjetas ---------- */
 .grid { display: grid; gap: 18px; }
@@ -200,13 +200,13 @@ details .table-scroll { margin-top: 14px; overflow-x: auto; }
   color: #fff; border-radius: 20px; padding: 60px 40px; position: relative; overflow: hidden;
 }
 .cover::after { content: ""; position: absolute; inset: 22px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; pointer-events: none; }
-.cover .eyebrow { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.cover .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
 .cover h2 { font-size: clamp(44px, 6vw, 84px); line-height: 1; margin: 18px 0 10px; font-weight: 700; }
 .cover h2 span { display: block; color: var(--gold-soft); }
 .cover .sub { font-size: clamp(18px, 2vw, 26px); color: #c8d3e6; font-weight: 400; }
 .cover .by { margin-top: 28px; color: #9fb0c9; font-size: 15px; }
 .cover .by b { color: #fff; font-weight: 600; }
-.cover .lema { margin-top: 34px; font-size: 13px; letter-spacing: .3em; color: var(--gold); font-weight: 600; }
+.cover .lema { margin-top: 34px; font-size: 13px; letter-spacing: .12em; color: var(--gold); font-weight: 600; }
 .cover .cta { margin-top: 40px; display: inline-flex; align-items: center; gap: 10px; background: var(--gold); color: var(--navy-900); border: 0; border-radius: 999px; padding: 13px 26px; font-weight: 700; cursor: pointer; font-size: 14px; letter-spacing: .04em; }
 .cover .cta:hover { background: var(--gold-soft); }
 .cover .agenda { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 44px; }

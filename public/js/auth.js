@@ -47,7 +47,7 @@ function mount() {
   <div id="auth-splash" role="status" aria-label="Cargando"><div class="spin"></div></div>
   <div id="login">
     <section class="lg-form-col">
-      <div class="lg-brand">${ICO.logo}<div><div class="name">${empresa}</div><div class="div">Alimentos &amp; Bebidas</div></div></div>
+      <div class="lg-brand">${ICO.logo}<div><div class="name">${empresa}</div><div class="div">División Alimentos &amp; Bebidas</div></div></div>
       <div class="lg-form-wrap">
         <h2>Iniciar sesión</h2>
         <p class="sub">Acceso exclusivo para el equipo directivo autorizado.</p>
@@ -72,12 +72,12 @@ function mount() {
 
     <section class="lg-stage" aria-hidden="true">
       <div class="lg-stage-head">
-        <div><div class="t">Centro de control · A&amp;B</div><h3>Del plato al EBITDA</h3></div>
+        <div><div class="t">Centro de control · Alimentos &amp; Bebidas</div><h3>Resultados operativos</h3></div>
         <div class="lg-live"><span class="dot"></span><b>EN VIVO</b><span id="lg-clock"></span></div>
       </div>
       <div class="lg-board">
         <div class="lg-card lg-ebitda">
-          <div class="lbl">EBITDA A&amp;B · YTD ${anio}</div>
+          <div class="lbl">EBITDA A&amp;B acumulado ${anio}</div>
           <div class="big" id="lg-ebitda">—</div>
           <div class="meta"><span class="lg-pill up" id="lg-vppto">▲ 5.8 % vs Ppto</span><span class="lg-pill gold" id="lg-margin">Margen 27.4 %</span></div>
           <div class="lg-chart" id="lg-chart"></div>
@@ -96,7 +96,7 @@ function mount() {
           <div class="bar"><span id="lg-cost-bar" style="width:0"></span></div>
         </div>
         <div class="lg-card lg-table">
-          <div class="lbl">EBITDA por outlet · YTD</div>
+          <div class="lbl">EBITDA por outlet (acumulado)</div>
           <table><thead><tr><th>Outlet</th><th>Venta</th><th>EBITDA</th><th>Margen</th></tr></thead>
             <tbody id="lg-rows"></tbody>
             <tfoot><tr><td>Consolidado A&amp;B</td><td id="lg-tv"></td><td id="lg-te"></td><td id="lg-tm"></td></tr></tfoot></table>
@@ -176,11 +176,11 @@ function startStage() {
 
   // Cinta de novedades del hotel
   const news = [
-    ["Ocupación hotel", "87 %"], ["Banquetes", "evento corporativo 180 pax confirmado"], ["Room Service", "42 pedidos en curso"],
-    ["Bar & Lounge", "happy hour +18 % vs semana anterior"], ["RevPAR", `${moneda} 142.60`], ["Seguridad alimentaria", "auditoría HACCP 98/100"],
-    ["Restaurante", "tiempo medio de servicio 14 min"], ["GSI", "satisfacción 91.4 pts"], ["Compras", "merma de cocina 2.1 %"]
+    ["Ocupación hotel", "87 %"], ["RevPAR", `${moneda} 142.60`], ["Banquetes", "evento corporativo 180 pax confirmado"],
+    ["Room Service", "42 pedidos en curso"], ["Seguridad alimentaria", "auditoría HACCP 98/100"],
+    ["GSI", "satisfacción 91.4 pts"]
   ].map(([k, v]) => `<span><b>${k}</b> · ${v}</span>`).join("");
-  $("lg-ticker").innerHTML = news + news;
+  $("lg-ticker").innerHTML = news;
 
   // Gráfico de venta por hora (se desplaza en tiempo real)
   const box = $("lg-chart");
