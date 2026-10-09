@@ -17,11 +17,14 @@
     { id: "gop", label: "GOP", num: "05" },
     { id: "ebitda", label: "EBITDA", num: "06" },
     { id: "gsi", label: "Resultados de GSI", group: "Experiencia del cliente" },
-    { id: "seguridad", label: "Seguridad y Sostenibilidad", group: "Responsabilidad operativa" }
+    { id: "seguridad", label: "Seguridad y Sostenibilidad", group: "Responsabilidad operativa" },
+    { id: "semaforo", label: "Semáforo de rentabilidad", group: "Diagnóstico" },
+    { id: "simulacion", label: "Simulación", group: "Práctica", cls: "sim" }
   ];
   const ORDER = NAV.map(n => n.id);
   const CSS = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   let charts = [];
+  let viewCleanup = null; // se ejecuta al salir de una vista (p. ej. detener la simulación en tiempo real)
 
   /* ---------------- Formato ---------------- */
   const M = CONFIG.moneda;
@@ -324,7 +327,9 @@
     gop: () => eq("<b>GOP</b>", "Ventas − Costo − Planilla − Otros gastos"),
     ebitda: () => eq("<b>Margen EBITDA</b>", `${frac("EBITDA", "Ventas")} × 100`),
     gsi: () => eq("<b>GSI</b>", frac("Σ calificaciones válidas", "N.º de calificaciones")),
-    seguridad: () => eq("<b>Cumplimiento %</b>", `${frac("Controles cumplidos", "Controles programados")} × 100`)
+    seguridad: () => eq("<b>Cumplimiento %</b>", `${frac("Controles cumplidos", "Controles programados")} × 100`),
+    semaforo: () => eq("<b>Prime cost %</b>", `${frac("Costo A&amp;B + Planilla", "Ventas")} × 100`),
+    simulacion: () => eq("<b>Utilidad</b>", "Ventas − Costo − Gastos")
   };
 
   function calcVentas() {
@@ -378,6 +383,45 @@
       nota: "Al ser un porcentaje, la variación se expresa en <b>puntos porcentuales (pp)</b>: diferencia simple entre porcentajes. Un costo por debajo del presupuesto es favorable. Cada 1 pp equivale a " + fmtMoney(v.act / 100) + " sobre la venta del periodo.",
       detalle: detalleRatio("costo", "ventas", "Costo", "Ventas", "Costo %", fmtMoney, fmtMoney, (x) => fmtPct(x, 2), 100), detalleTitulo: "Ver cálculo mes a mes"
     });
+  }
+
+  /* Food cost y beverage cost por separado */
+  function foodBevBlock() {
+    const fc = ratioTotal("costoAlim", "ventasAlim", 100), bc = ratioTotal("costoBeb", "ventasBeb", 100), t = ratioTotal("costo", "ventas", 100);
+    const va = totales("ventasAlim"), vb = totales("ventasBeb"), ca = totales("costoAlim"), cb = totales("costoBeb"), v = totales("ventas");
+    const mixA = (va.act / v.act) * 100, mixB = 100 - mixA;
+    const R = REFERENCIAS, c = C();
+    const tileFB = (nombre, x, ref) => tile({ label: `${nombre} · Actual ${CONFIG.anio}`, value: fmtPct(x.act), hero: true, color: c.act,
+      meta: `Presupuesto ${fmtPct(x.ppto)} · ${CONFIG.anioAnterior}: ${fmtPct(x.aa)} · Referencia sana ≤ ${ref.verde} %`,
+      deltas: deltaPill(x.act, x.ppto, "vs presupuesto", { invert: true, pp: true }) + deltaPill(x.act, x.aa, `vs ${CONFIG.anioAnterior}`, { invert: true, pp: true }) });
+    const filas = (cn, vn, x) => escenarios().map(e => ({ label: e.label, color: e.color, expr: `<span class="math">${frac(fmtMoney(cn[e.k]), fmtMoney(vn[e.k]))} × 100</span>`, result: fmtPct(x[e.k], 2) }));
+    const porOutlet = outletIds().map(id => {
+      const o = OUTLETS.find(x => x.id === id), g = (campo) => sum(mesIdx().map(i => SERIES[id][i][campo].act));
+      return [esc(o.nombre), fmtMoney(g("ventasAlim")), fmtPct((g("costoAlim") / g("ventasAlim")) * 100), fmtMoney(g("ventasBeb")), fmtPct((g("costoBeb") / g("ventasBeb")) * 100), fmtPct((g("ventasAlim") / g("ventas")) * 100)];
+    });
+    const calc = calcCard({
+      formula: `${eq("<b>Food Cost %</b>", `${frac("Costo de alimentos", "Ventas de alimentos")} × 100`)}<span class="math-alt">${eq("<b>Beverage Cost %</b>", `${frac("Costo de bebidas", "Ventas de bebidas")} × 100`)}</span>`,
+      vars: [["Costo de alimentos", "Inventario inicial + Compras − Inventario final de alimentos (menos consumos de personal y cortesías, que se registran aparte)."],
+        ["Costo de bebidas", "Igual, con el inventario de bar y bodega."], ["Ventas de alimentos / bebidas", "Ingresos separados por tipo de producto en el sistema de punto de venta."]],
+      rowsTitle: "Food Cost % con los datos del periodo",
+      rows: filas(ca, va, fc),
+      extra: `<h5 class="sub-step">Beverage Cost %</h5>${calcTable(filas(cb, vb, bc))}
+        <h5 class="sub-step">Relación con el costo A&amp;B total (promedio ponderado por el mix de venta)</h5>
+        <div class="check-row">${eq("Costo A&amp;B %", "Food Cost × %mix alimentos + Beverage Cost × %mix bebidas",
+          `${fmtPct(fc.act, 2)} × ${fmtPct(mixA)} + ${fmtPct(bc.act, 2)} × ${fmtPct(mixB)}`, resPill(fmtPct(t.act, 2)))}</div>`,
+      variations: [
+        ...variaciones(fc, (x) => fmtPct(x, 2), { pp: true, invert: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Food cost: variación") })),
+        ...variaciones(bc, (x) => fmtPct(x, 2), { pp: true, invert: true, dec: 2 }).map(r => ({ ...r, label: r.label.replace("Variación", "Beverage cost: variación") }))
+      ],
+      nota: `El costo de bebidas suele ser bastante menor que el de alimentos, por eso el costo A&amp;B total depende del <b>mix de venta</b>: si crece la proporción de bebidas, el costo total baja aunque ningún producto cambie de costo. Rangos de referencia orientativos para hotel: food cost ≤ ${R.foodCost.verde} % y beverage cost ≤ ${R.bevCost.verde} %.`,
+      detalle: tablaSimple(["Outlet", "Ventas alimentos", "Food cost %", "Ventas bebidas", "Beverage cost %", "Mix alimentos"], porOutlet,
+        ["Total", fmtMoney(va.act), fmtPct(fc.act), fmtMoney(vb.act), fmtPct(bc.act), fmtPct(mixA)]),
+      detalleTitulo: "Ver food cost y beverage cost por outlet"
+    });
+    return `<div class="section-sub"><h3>Food Cost y Beverage Cost por separado</h3><p>El costo A&amp;B se descompone en alimentos y bebidas: cada uno tiene su propia fórmula, su rango sano y sus palancas de control.</p></div>
+      <div class="grid c2">${tileFB("Food Cost %", fc, R.foodCost)}${tileFB("Beverage Cost %", bc, R.bevCost)}</div>
+      ${calc}
+      ${chartCard("ch-f3", "Food cost y beverage cost por mes", "% de la venta de cada línea · actual vs presupuesto")}`;
   }
 
   function calcGOP() {
@@ -489,6 +533,8 @@
       { n: "Covers", f: fmtInt, mejor: "alto", ppto: ppto("covers"), v: (id) => m(id, "covers") },
       { n: "Average Check", f: (x) => fmtDec(x), mejor: "alto", ppto: pRatio("ventas", "covers"), v: (id) => ratio(id, "ventas", "covers") },
       { n: "Costo A&B % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costo", "ventas", 100), v: (id) => ratio(id, "costo", "ventas", 100) },
+      { n: "Food cost %", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costoAlim", "ventasAlim", 100), v: (id) => ratio(id, "costoAlim", "ventasAlim", 100) },
+      { n: "Beverage cost %", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("costoBeb", "ventasBeb", 100), v: (id) => ratio(id, "costoBeb", "ventasBeb", 100) },
       { n: "Planilla % de la venta", f: (x) => fmtPct(x), pp: true, mejor: "bajo", ppto: pRatio("planilla", "ventas", 100), v: (id) => ratio(id, "planilla", "ventas", 100) },
       { n: "GOP", f: fmtMoney, mejor: "alto", ppto: ppto("gop"), v: (id) => m(id, "gop") },
       { n: "Margen GOP", f: (x) => fmtPct(x), pp: true, mejor: "alto", ppto: pRatio("gop", "ventas", 100), v: (id) => ratio(id, "gop", "ventas", 100) },
@@ -557,7 +603,7 @@
         <div class="agenda">${agenda}</div>
       </div>
     </section>
-    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Flechas ← → para navegar · M oculta el menú · F pantalla completa</div>`;
+    <div class="footnote">Dashboard interactivo · Datos simulados con fines de exposición · Enter o flechas → para avanzar · Shift + Enter o ← para volver · M oculta el menú · F pantalla completa</div>`;
   }
 
   function viewResumen() {
@@ -755,6 +801,7 @@
     return `${sectionHead(sec, `Indicador ${sec.num} de 06`, "costo")}
       ${tresTiles(t, fmtPct, { invert: true, pp: true })}
       ${calcCosto()}
+      ${foodBevBlock()}
       ${chartCard("ch-f1", "Costo real vs. presupuesto vs. año anterior", "Costo de consumo como % de la venta, por mes", "tall")}
       <div class="grid split">
         ${chartCard("ch-f2", "Mermas, desperdicios y variación de inventario", "Costo no teórico como % de la venta: aquí se gana o se pierde el punto de margen")}
@@ -764,6 +811,17 @@
   }
   function chartsCosto() {
     const c = C();
+    const fm = ratioMensual("costoAlim", "ventasAlim", 100), bm = ratioMensual("costoBeb", "ventasBeb", 100);
+    mkChart("ch-f3", {
+      type: "line",
+      data: { labels: CONFIG.meses, datasets: [
+        { label: "Food cost actual", data: fm.act, borderColor: c.act, backgroundColor: c.act },
+        { label: "Food cost presupuesto", data: fm.ppto, borderColor: c.ppto, backgroundColor: c.ppto, borderDash: [6, 4], pointRadius: 0 },
+        { label: "Beverage cost actual", data: bm.act, borderColor: c.aa, backgroundColor: c.aa },
+        { label: "Beverage cost presupuesto", data: bm.ppto, borderColor: c.s4, backgroundColor: c.s4, borderDash: [6, 4], pointRadius: 0 }
+      ] },
+      options: { scales: { x: axisX(), y: axisY((x) => fmtPct(x, 0)) }, plugins: { tooltip: tipFmt((x) => fmtPct(x, 2)), legend: LEGEND_IDX } }
+    });
     chartActPptoAA("ch-f1", ratioMensual("costo", "ventas", 100), (x) => fmtPct(x, 0), { lines: true });
     const v = serieMensual("ventas", "act");
     const det = (k) => CONFIG.meses.map((_, m) => (sum(outletIds().map(id => SERIES[id][m].costoDetalle[k])) / v[m]) * 100);
@@ -971,6 +1029,411 @@
     });
   }
 
+  /* ---- Semáforo de rentabilidad ---- */
+  function estadoRef(val, ref) {
+    if (ref.tipo === "max") return val <= ref.verde ? "ok" : val <= ref.ambar ? "warn" : "bad";
+    return val >= ref.verde ? "ok" : val >= ref.ambar ? "warn" : "bad";
+  }
+  const refTxt = (ref) => `${ref.tipo === "max" ? "≤" : "≥"} ${ref.verde}${ref.unidad === "%" ? " %" : ` ${ref.unidad}`}`;
+  function indicadoresRentabilidad() {
+    const R = REFERENCIAS;
+    const v = totales("ventas"), co = totales("costo"), pl = totales("planilla"), g = totales("gop"), e = totales("ebitda");
+    const fc = ratioTotal("costoAlim", "ventasAlim", 100).act, bc = ratioTotal("costoBeb", "ventasBeb", 100).act;
+    const merma = sum(mesIdx().map(i => sum(outletIds().map(id => SERIES[id][i].costoDetalle.merma))));
+    const pct = (a, b) => (a / b) * 100;
+    const p = (x) => fmtPct(x);
+    return [
+      { n: "Food cost %", formula: `${frac("Costo de alimentos", "Ventas de alimentos")} × 100`, val: fc, f: p, ref: R.foodCost, go: "costo",
+        accion: "Recetas estándar costeadas, porcionado, control de mermas, rotación FIFO y negociación de compras." },
+      { n: "Beverage cost %", formula: `${frac("Costo de bebidas", "Ventas de bebidas")} × 100`, val: bc, f: p, ref: R.bevCost, go: "costo",
+        accion: "Medidas estándar por trago, inventario semanal de barra, control de botellas abiertas y precios por copa." },
+      { n: "Costo A&amp;B combinado %", formula: `${frac("Costo de alimentos + bebidas", "Ventas A&amp;B")} × 100`, val: pct(co.act, v.act), f: p, ref: R.costoAB, go: "costo",
+        accion: "Depende de food cost, beverage cost y del mix: impulsar la venta de bebidas mejora el costo total." },
+      { n: "Planilla % de la venta", formula: `${frac("Sueldos + cargas sociales", "Ventas")} × 100`, val: pct(pl.act, v.act), f: p, ref: R.planilla, go: "gop",
+        accion: "Turnos según la demanda por día y franja, personal polifuncional y control de horas extra." },
+      { n: "Prime cost %", formula: `${frac("Costo A&amp;B + Planilla", "Ventas")} × 100`, val: pct(co.act + pl.act, v.act), f: p, ref: R.primeCost, go: "gop",
+        accion: "Es el mayor costo controlable de la operación: si sale de rango, atacar a la vez costo y planilla." },
+      { n: "Margen GOP", formula: `${frac("GOP", "Ventas")} × 100`, val: pct(g.act, v.act), f: p, ref: R.margenGOP, go: "gop",
+        accion: "Crecer en venta con gastos controlables estables: el apalancamiento operativo amplía el margen." },
+      { n: "Margen EBITDA", formula: `${frac("EBITDA", "Ventas")} × 100`, val: pct(e.act, v.act), f: p, ref: R.margenEBITDA, go: "ebitda",
+        accion: "Además de la operación, revisar los gastos no distribuidos asignados (administración, energía, marketing)." },
+      { n: "Cumplimiento de ventas", formula: `${frac("Ventas reales", "Ventas presupuestadas")} × 100`, val: pct(v.act, v.ppto), f: p, ref: R.ventasPpto, go: "ventas",
+        accion: "Venta sugerida, promociones en horas valle, eventos y mejor captación de huéspedes del hotel." },
+      { n: "Mermas % de la venta", formula: `${frac("Mermas y desperdicios", "Ventas")} × 100`, val: pct(merma, v.act), f: (x) => fmtPct(x, 2), ref: R.merma, go: "costo",
+        accion: "Producción según pronóstico, aprovechamiento de insumos, registro diario de mermas y causas." },
+      { n: "GSI (satisfacción)", formula: frac("Σ calificaciones", "N.º de calificaciones"), val: avg(GSI.tendencia.act), f: (x) => x.toFixed(2), ref: R.gsi, go: "gsi",
+        accion: "Sin clientes satisfechos no hay venta sostenible: cerrar cada comentario con una acción y un responsable." },
+      { n: "Cumplimiento de inocuidad", formula: `${frac("Controles cumplidos", "Controles programados")} × 100`, val: avg(SEGURIDAD.cumplimiento.act), f: p, ref: R.inocuidad, go: "seguridad",
+        accion: "Un incidente de inocuidad cuesta más que cualquier ahorro: capacitación BPM/HACCP y registros al día." }
+    ].map(x => ({ ...x, estado: estadoRef(x.val, x.ref) }));
+  }
+  const ESTADO_TXT = { ok: "Sano", warn: "Vigilar", bad: "Actuar" };
+  function viewSemaforo() {
+    const sec = SECCIONES.semaforo, ind = indicadoresRentabilidad();
+    const n = (k) => ind.filter(x => x.estado === k).length;
+    const c = C();
+    const fuera = ind.filter(x => x.estado !== "ok").sort((a, b) => (a.estado === "bad" ? -1 : 1) - (b.estado === "bad" ? -1 : 1));
+    const ins = fuera.length
+      ? fuera.slice(0, 4).map(x => `<b>${x.n}</b> en ${x.f(x.val)} (referencia ${refTxt(x.ref)}): ${x.accion}`)
+      : ["Todos los indicadores están dentro de los rangos sanos: el reto es sostenerlos mes a mes y elevar el estándar."];
+    return `${sectionHead(sec, sec.seccion, "semaforo")}
+      <div class="grid c3">
+        ${tile({ label: "Indicadores sanos", value: `${n("ok")} <span class="of">de ${ind.length}</span>`, color: c.good, meta: "Dentro del rango de referencia" })}
+        ${tile({ label: "Para vigilar", value: `${n("warn")} <span class="of">de ${ind.length}</span>`, color: CSS("--warn"), meta: "Cerca del límite: tendencia a corregir" })}
+        ${tile({ label: "Para actuar", value: `${n("bad")} <span class="of">de ${ind.length}</span>`, color: c.bad, meta: "Fuera de rango: requieren un plan de acción" })}
+      </div>
+      <div class="card"><div class="card-title">Indicadores clave de rentabilidad</div>
+        <div class="card-sub">${esc(outletNombre())} · ${periodoNombre()} · Rangos orientativos para A&amp;B de hotel (editables en <code>REFERENCIAS</code>, archivo data.js)</div>
+        <div class="table-scroll"><table class="sem-table"><thead><tr><th>Indicador</th><th>Fórmula</th><th>Resultado</th><th>Referencia sana</th><th>Estado</th><th>Qué hacer para mejorarlo</th></tr></thead><tbody>
+          ${ind.map(x => `<tr><td><button class="link" data-go="${x.go}">${x.n}</button></td><td class="f"><span class="math">${x.formula}</span></td><td class="n"><b>${x.f(x.val)}</b></td><td class="n">${refTxt(x.ref)}</td>
+            <td><span class="pill ${x.estado === "ok" ? "ok" : x.estado === "warn" ? "warn" : "bad"}">${ESTADO_TXT[x.estado]}</span></td><td class="txt">${x.accion}</td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="legend-note">Verde: sano · ámbar: vigilar (entre el rango sano y el límite) · rojo: actuar. Los rangos varían según categoría del hotel, concepto y mercado; úsalos como punto de partida.</p>
+      </div>
+      <div class="grid split">
+        ${chartCard("ch-sem-1", "¿A dónde va cada US$ 100 de venta?", "Estructura de costos y resultado: actual vs presupuesto", "tall")}
+        ${insightsCard(ins, "Prioridades de acción")}
+      </div>
+      <div class="card"><div class="card-title">Otros indicadores recomendados</div><div class="card-sub">Complementan el análisis de rentabilidad; requieren datos operativos adicionales</div>
+        <div class="table-scroll"><table class="sem-table"><thead><tr><th>Indicador</th><th>Fórmula</th><th>Para qué sirve</th></tr></thead><tbody>
+          ${[
+            ["Margen de contribución por plato", `Precio de venta − Costo de la receta`, "Ingeniería de menú: identificar platos estrella, caballos de batalla, enigmas y perros."],
+            ["RevPASH", frac("Ventas", "Asientos disponibles × horas de servicio"), "Ingreso por asiento disponible por hora: mide el aprovechamiento de la capacidad del salón."],
+            ["Rotación de inventario (días)", `${frac("Inventario promedio", "Costo de consumo")} × días del periodo`, "Días de stock en almacén: exceso de inventario inmoviliza caja y aumenta mermas."],
+            ["Productividad laboral", frac("Covers atendidos", "Horas trabajadas"), "Clientes atendidos por hora de trabajo; base para programar turnos."],
+            ["Captación de huéspedes", `${frac("Huéspedes que consumen en A&amp;B", "Huéspedes alojados")} × 100`, "Cuánto aprovecha A&amp;B la ocupación del hotel."],
+            ["Costo por cover", frac("Costo A&amp;B", "Covers"), "Costo promedio de lo servido a cada cliente; se compara con el average check."]
+          ].map(([a, b, d]) => `<tr><td><b>${a}</b></td><td class="f"><span class="math">${b}</span></td><td class="txt">${d}</td></tr>`).join("")}
+        </tbody></table></div></div>`;
+  }
+  function chartsSemaforo() {
+    const v = totales("ventas"), ca = totales("costoAlim"), cb = totales("costoBeb"), pl = totales("planilla"), ot = totales("otros"), g = totales("gop"), e = totales("ebitda");
+    const parte = (x, k) => (x[k] / v[k]) * 100;
+    const nd = { act: g.act - e.act, ppto: g.ppto - e.ppto };
+    const cols = [CSS("--s-actual"), "#6aa2e8", CSS("--s-aa"), CSS("--s-4"), CSS("--s-ppto"), CSS("--good")];
+    const series = [["Costo de alimentos", ca], ["Costo de bebidas", cb], ["Planilla", pl], ["Otros gastos", ot], ["No distribuidos", nd], ["EBITDA", e]];
+    mkChart("ch-sem-1", {
+      type: "bar",
+      data: { labels: [`Actual ${CONFIG.anio}`, "Presupuesto"], datasets: series.map(([l, x], i) => ({ label: l, data: [parte(x, "act"), parte(x, "ppto")], backgroundColor: cols[i], borderColor: "#fff", borderWidth: { right: 2 }, borderSkipped: false })) },
+      options: { indexAxis: "y", scales: { x: axisY((x) => `US$ ${x}`, { stacked: true, min: 0, max: 100 }), y: axisX({ stacked: true }) },
+        plugins: { legend: LEGEND_IDX, tooltip: { callbacks: { label: (x) => ` ${x.dataset.label}: US$ ${x.parsed.x.toFixed(2)} de cada US$ 100` } } } }
+    });
+  }
+
+  /* ================= Simulación: de la receta a la utilidad (hotel 5 estrellas) ================= */
+  const PK = ["plato", "bebida"];
+  const SIM = { st: null, sens: { costo: 0, sobre: 0, merma: 0 }, timer: null, dia: 0, acum: {}, serie: { plato: [], bebida: [] }, base: {}, feed: [], ch: {} };
+  const DIAS_SIM = 30;
+  function simInit() {
+    if (SIM.st) return;
+    SIM.st = JSON.parse(JSON.stringify(SIMULACION));
+  }
+  const costoIng = (g) => (Number(g.cant) * Number(g.precio)) / (1 - Math.min(Number(g.merma) || 0, 95) / 100);
+  const costoReceta = (p) => sum(p.ingredientes.map(costoIng)) / (Number(p.porciones) || 1);
+  /* Estado de resultados de un producto para un número de unidades */
+  function pnlProducto(p, unidades, cr, sens) {
+    const P = SIM.st, ventas = unidades * p.precioNeto;
+    const base = unidades * cr, dPrecio = base * sens.costo / 100, dSobre = (base + dPrecio) * sens.sobre / 100, dMerma = (base + dPrecio + dSobre) * sens.merma / 100;
+    const costo = base + dPrecio + dSobre + dMerma, mb = ventas - costo;
+    const planilla = ventas * P.planillaPct / 100, otros = ventas * P.otrosPct / 100, gop = mb - planilla - otros, nd = ventas * P.ndPct / 100;
+    return { unidades, ventas, base, dPrecio, dSobre, dMerma, costo, mb, planilla, otros, gop, nd, util: gop - nd };
+  }
+  const sumarPnl = (a, b) => { const o = {}; Object.keys(b).forEach(k => { o[k] = (a ? a[k] : 0) + b[k]; }); return o; };
+  const planProducto = (pk, sens = SIM.sens) => { const p = SIM.st.productos[pk]; return pnlProducto(p, p.unidadesMes, costoReceta(p), sens); };
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+  const num = (v) => { const x = parseFloat(String(v).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+  const setHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+  function recipeRows(pk) {
+    const p = SIM.st.productos[pk];
+    const inp = (i, f, v, type = "number") => `<input type="${type}" ${type === "number" ? 'step="any" min="0" inputmode="decimal"' : ""} data-prod="${pk}" data-ing="${i}" data-f="${f}" value="${esc(String(v))}" aria-label="${f}">`;
+    return p.ingredientes.map((g, i) => `<tr class="${i === p.volatil ? "vol" : ""}">
+      <td class="ing">${inp(i, "n", g.n, "text")}${i === p.volatil ? `<small class="live">● precio de mercado en vivo</small>` : ""}</td>
+      <td>${inp(i, "cant", g.cant)}</td><td class="und">${inp(i, "und", g.und, "text")}</td>
+      <td><span class="in"><i>US$</i>${inp(i, "precio", g.precio)}</span></td><td><span class="in">${inp(i, "merma", g.merma)}<i>%</i></span></td>
+      <td class="c" id="sim-ic-${pk}-${i}"></td>
+      <td><button class="sim-del" data-sim="del" data-prod="${pk}" data-i="${i}" title="Quitar insumo" aria-label="Quitar insumo">×</button></td></tr>`).join("");
+  }
+
+  function viewSimulacion() {
+    simInit();
+    const sec = SECCIONES.simulacion, P = SIM.st;
+    const par = (k, label, suf = "%") => `<label class="sim-par"><span>${label}</span><span class="in"><input type="number" step="any" min="0" data-par="${k}" value="${P[k]}"><i>${suf}</i></span></label>`;
+    const field = (pk, f, label, pre, suf, step) => `<label class="sim-par"><span>${label}</span><span class="in">${pre ? `<i>${pre}</i>` : ""}<input type="number" step="${step}" min="0" data-prod="${pk}" data-f="${f}" value="${P.productos[pk][f]}">${suf ? `<i>${suf}</i>` : ""}</span></label>`;
+    const prodCard = (pk) => {
+      const p = P.productos[pk];
+      return `<div class="card sim-prod">
+        <div class="sim-prod-head"><span class="sim-tag ${pk}">${p.tipo}</span><input class="sim-name" type="text" data-prod="${pk}" data-f="nombre" value="${esc(p.nombre)}" aria-label="Nombre del producto"></div>
+        <div class="card-sub">${esc(p.descripcion)}</div>
+        <h4 class="sim-h">1 · Receta estándar (1 porción)</h4>
+        <div class="table-scroll"><table class="sim-rec"><thead><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th><th>Precio de compra por unidad</th><th>Merma</th><th>Costo</th><th></th></tr></thead>
+          <tbody id="sim-rec-${pk}">${recipeRows(pk)}</tbody>
+          <tfoot><tr><td colspan="5">Costo de la receta por porción</td><td class="c" id="sim-cr-${pk}"></td><td></td></tr></tfoot></table></div>
+        <button class="sim-btn ghost small" data-sim="add" data-prod="${pk}">+ Agregar insumo</button>
+        <p class="legend-note">${eq("Costo del insumo", `${frac("Cantidad × Precio de compra", "1 − Merma")}`)}</p>
+        <h4 class="sim-h">2 · Precio de venta</h4>
+        <div class="sim-fields">
+          ${field(pk, "precioNeto", "Precio de venta neto (sin impuestos)", "US$", "", "0.5")}
+          ${field(pk, "metaCosto", `Meta de ${pk === "plato" ? "food" : "beverage"} cost`, "", "%", "1")}
+          ${field(pk, "unidadesMes", `${p.unidad[0].toUpperCase() + p.unidad.slice(1)} vendidos al mes`, "", "", "10")}
+        </div>
+        <div class="sim-kpis" id="sim-kpis-${pk}"></div>
+        <div class="sim-client" id="sim-client-${pk}"></div>
+      </div>`;
+    };
+    const slider = (k, label, min, max) => `<label class="sim-slider"><span>${label}</span><b id="sim-sv-${k}">${SIM.sens[k]} %</b>
+      <input type="range" min="${min}" max="${max}" step="1" value="${SIM.sens[k]}" data-sens="${k}" aria-label="${label}"></label>`;
+    return `<div id="sim-root">
+      ${sectionHead(sec, sec.seccion, "simulacion")}
+      <div class="card sim-params"><div class="card-title">Parámetros del hotel 5 estrellas</div>
+        <div class="card-sub">Impuesto y cargo por servicio se suman al precio que paga el cliente (no son ingreso del hotel). Los gastos se asignan como % de la venta.</div>
+        <div class="sim-fields">${par("impuesto", "Impuesto (IGV/IVA)")}${par("servicio", "Cargo por servicio")}${par("planillaPct", "Planilla asignada")}${par("otrosPct", "Otros gastos operativos")}${par("ndPct", "Gastos no distribuidos")}
+          <button class="sim-btn ghost small" data-sim="restore">Restaurar recetas y parámetros base</button></div></div>
+      <div class="grid c2 sim-prods">${prodCard("plato")}${prodCard("bebida")}</div>
+
+      <div class="card sim-live">
+        <div class="sim-live-head"><div><div class="card-title">Simulación en tiempo real · un mes de operación</div>
+          <div class="card-sub">Cada segundo es un día: se venden platos y bebidas (más los fines de semana) y el precio de mercado del insumo principal sube o baja. Observa cómo se mueve la utilidad frente al plan.</div></div>
+          <div class="sim-ctrl"><button class="sim-btn" data-sim="play" id="sim-play">▶ Iniciar simulación</button><button class="sim-btn ghost" data-sim="reset">↺ Reiniciar</button></div></div>
+        <div class="sim-progress"><span id="sim-bar"></span></div>
+        <div class="grid split">
+          <div><div class="chart-wrap"><canvas id="ch-sim-live" role="img" aria-label="Utilidad acumulada día a día"></canvas></div></div>
+          <div><div id="sim-live-kpis"></div><ul class="sim-feed" id="sim-feed"></ul></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-title">3 · De la venta a la utilidad: estado de resultados por producto</div>
+        <div class="card-sub" id="sim-pl-sub"></div><div class="table-scroll" id="sim-pl"></div></div>
+      <div class="grid c2">
+        ${chartCard("ch-sim-w-plato", "¿A dónde va el precio de cada plato?", "Precio neto por unidad, desde la venta hasta la utilidad (US$)")}
+        ${chartCard("ch-sim-w-bebida", "¿A dónde va el precio de cada bebida?", "Precio neto por unidad, desde la venta hasta la utilidad (US$)")}
+      </div>
+
+      <div class="card sim-sens"><div class="card-title">4 · ¿Por qué es tan importante cuidar los costos?</div>
+        <div class="card-sub">Mueve los controles: son los tres desvíos más comunes en una cocina y una barra. El estado de resultados de arriba también se actualiza.</div>
+        <div class="sim-sliders">
+          ${slider("costo", "Aumento del precio de los insumos", -10, 40)}
+          ${slider("sobre", "Sobreporción (se sirve más de lo que indica la receta)", 0, 25)}
+          ${slider("merma", "Mermas no controladas (desperdicio, vencidos, devoluciones)", 0, 20)}
+        </div>
+        <div class="grid c2" id="sim-sens-out"></div>
+        <div class="grid split">
+          <div><h4 class="sim-h">Utilidad mensual según el aumento del costo de los insumos</h4><div class="chart-wrap"><canvas id="ch-sim-sens" role="img" aria-label="Sensibilidad de la utilidad al costo"></canvas></div></div>
+          <div><h4 class="sim-h">Efecto de un alza solo en el precio de los insumos</h4><div class="table-scroll" id="sim-sens-table"></div></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function simPnlTabla(r) {
+    const lineas = [
+      ["Ventas netas (unidades × precio neto)", "ventas", false, true],
+      ["(−) Costo de la receta estándar", "base"], ["(−) Desvío por precio de insumos", "dPrecio"], ["(−) Sobreporción", "dSobre"], ["(−) Mermas no controladas", "dMerma"],
+      ["(=) Margen bruto de contribución", "mb", true], ["(−) Planilla asignada", "planilla"], ["(−) Otros gastos operativos", "otros"],
+      ["(=) GOP del producto", "gop", true], ["(−) Gastos no distribuidos", "nd"], ["(=) Utilidad del producto (EBITDA)", "util", true, true]
+    ];
+    const tot = sumarPnl(r.plato, r.bebida);
+    const cel = (x, k, pu) => { const v = x[k], u = pu ? v / (x.unidades || 1) : v; return `<td class="${v < 0 ? "neg" : ""}">${pu ? fmtDec(u, 2) : fmtMoney(v)}</td>`; };
+    const pct = (x, k) => `<td class="p">${x.ventas ? fmtPct((x[k] / x.ventas) * 100) : "—"}</td>`;
+    const P = SIM.st.productos;
+    return `<table class="sim-pl"><thead>
+      <tr><th rowspan="2">Concepto</th><th colspan="3">${esc(P.plato.nombre)}</th><th colspan="3">${esc(P.bebida.nombre)}</th><th colspan="2">Total</th></tr>
+      <tr><th>Por plato</th><th>${fmtInt(r.plato.unidades)} platos</th><th>% venta</th><th>Por bebida</th><th>${fmtInt(r.bebida.unidades)} bebidas</th><th>% venta</th><th>US$</th><th>% venta</th></tr></thead><tbody>
+      ${lineas.map(([n, k, sub, key]) => `<tr class="${sub ? "sub" : ""} ${key ? "key" : ""}"><td>${n}</td>${cel(r.plato, k, true)}${cel(r.plato, k)}${pct(r.plato, k)}${cel(r.bebida, k, true)}${cel(r.bebida, k)}${pct(r.bebida, k)}${cel(tot, k)}${pct(tot, k)}</tr>`).join("")}
+    </tbody></table>`;
+  }
+
+  function simWaterfall(pk, r) {
+    const ch = SIM.ch[pk]; if (!ch) return;
+    const u = r.unidades || 1, v = r.ventas / u, co = r.costo / u, pl = r.planilla / u, ot = r.otros / u, nd = r.nd / u, ut = r.util / u, c = C();
+    const pasos = [[0, v], [v - co, v], [v - co - pl, v - co], [v - co - pl - ot, v - co - pl], [v - co - pl - ot - nd, v - co - pl - ot], ut >= 0 ? [0, ut] : [ut, 0]];
+    ch.data.datasets[0].data = pasos;
+    ch.data.datasets[0].backgroundColor = [c.act, c.aa, c.s4, c.s5, c.ppto, ut >= 0 ? c.good : c.bad];
+    ch.update("none");
+  }
+
+  function simSens() {
+    const P = SIM.st, rows = [], out = [];
+    PK.forEach(pk => {
+      const p = P.productos[pk], base = planProducto(pk, { costo: 0, sobre: 0, merma: 0 }), cur = planProducto(pk), uno = planProducto(pk, { costo: 1, sobre: 0, merma: 0 });
+      const caida = base.util ? ((base.util - uno.util) / Math.abs(base.util)) * 100 : 0;
+      const delta = base.util ? ((cur.util - base.util) / Math.abs(base.util)) * 100 : 0;
+      const porU = cur.unidades ? cur.util / cur.unidades : 0;
+      let comp;
+      if (cur.util >= base.util) comp = "Con estos valores la utilidad no se reduce frente a la receta estándar.";
+      else if (porU <= 0) comp = `<b>Cada ${p.unidad.slice(0, -1)} vendido pierde dinero:</b> vender más no lo resuelve; hay que corregir costo o precio.`;
+      else { const extra = base.util / porU - cur.unidades; comp = `Para recuperar la utilidad habría que vender <b>${fmtInt(extra)} ${p.unidad} más al mes</b> (+${fmtPct((extra / cur.unidades) * 100, 0)}), con el mismo esfuerzo de salón, cocina y barra.`; }
+      out.push(`<div class="sim-sens-card"><div class="t"><span class="sim-tag ${pk}">${p.tipo}</span> ${esc(p.nombre)}</div>
+        <div class="row"><span>Utilidad mensual con la receta estándar</span><b>${fmtMoney(base.util)}</b></div>
+        <div class="row"><span>Utilidad con los desvíos seleccionados</span><b class="${cur.util < base.util ? "neg" : "pos"}">${fmtMoney(cur.util)} (${signo(delta)} %)</b></div>
+        <p>Cada <b>1 %</b> que sube el precio de los insumos reduce la utilidad del producto en <b>${caida.toFixed(1)} %</b> (${fmtMoney(base.util - uno.util)} al mes): la venta no cambia, así que todo el aumento sale directamente de la utilidad.</p>
+        ${base.util > 0 ? `<p><b>Cada US$ 1 ahorrado en costo equivale a vender ${fmtDec(base.ventas / base.util, 2)} más</b>: de cada venta adicional solo llega a la utilidad el ${fmtPct((base.util / base.ventas) * 100)} (el resto se va en costo y gastos), mientras que un dólar ahorrado llega completo.</p>` : ""}
+        <p>${comp}</p></div>`);
+      rows.push({ pk, p, base });
+    });
+    setHTML("sim-sens-out", out.join(""));
+    const niveles = [0, 5, 10, 20, 30];
+    setHTML("sim-sens-table", `<table><thead><tr><th>Alza del costo</th>${rows.map(r => `<th>${esc(r.p.tipo)}</th><th>Variación</th>`).join("")}</tr></thead><tbody>
+      ${niveles.map(n => `<tr><td>+${n} %</td>${rows.map(r => { const u = planProducto(r.pk, { costo: n, sobre: 0, merma: 0 }).util, d = r.base.util ? ((u - r.base.util) / Math.abs(r.base.util)) * 100 : 0;
+        return `<td class="${u < 0 ? "neg" : ""}">${fmtMoney(u)}</td><td class="${d < 0 ? "neg" : ""}">${n ? `${signo(d)} %` : "—"}</td>`; }).join("")}</tr>`).join("")}
+    </tbody></table>`);
+    const ch = SIM.ch.sens;
+    if (ch) {
+      const xs = ch.data.labels.map(l => parseInt(l, 10));
+      PK.forEach((pk, i) => { ch.data.datasets[i].data = xs.map(x => planProducto(pk, { ...SIM.sens, costo: x }).util); ch.data.datasets[i].label = SIM.st.productos[pk].nombre; });
+      ch.update("none");
+    }
+  }
+
+  function simLive() {
+    const P = SIM.st, d = SIM.dia;
+    const bar = document.getElementById("sim-bar"); if (bar) bar.style.width = `${(d / DIAS_SIM) * 100}%`;
+    const btn = document.getElementById("sim-play");
+    if (btn) btn.textContent = SIM.timer ? "⏸ Pausar" : d >= DIAS_SIM ? "▶ Simular otro mes" : d > 0 ? "▶ Continuar" : "▶ Iniciar simulación";
+    const kp = PK.map(pk => {
+      const a = SIM.acum[pk], plan = planProducto(pk), planD = plan.util * d / DIAS_SIM, p = P.productos[pk];
+      if (!a) return `<div class="sim-lk"><div class="t"><span class="sim-tag ${pk}">${p.tipo}</span> ${esc(p.nombre)}</div><p class="muted">Pulsa «Iniciar simulación» para vender durante ${DIAS_SIM} días.</p></div>`;
+      const cp = a.ventas ? (a.costo / a.ventas) * 100 : 0, dv = planD ? ((a.util - planD) / Math.abs(planD)) * 100 : 0;
+      const g = p.ingredientes[p.volatil];
+      return `<div class="sim-lk"><div class="t"><span class="sim-tag ${pk}">${p.tipo}</span> ${esc(p.nombre)}</div>
+        <div class="grid4"><div><span>Vendidos</span><b>${fmtInt(a.unidades)}</b></div><div><span>Ventas</span><b>${fmtMoney(a.ventas)}</b></div>
+        <div><span>${pk === "plato" ? "Food" : "Beverage"} cost real</span><b class="${cp > p.metaCosto ? "neg" : "pos"}">${fmtPct(cp)}</b></div>
+        <div><span>Utilidad acumulada</span><b class="${a.util < planD ? "neg" : "pos"}">${fmtMoney(a.util)}</b></div></div>
+        <div class="muted">vs plan a la fecha ${fmtMoney(planD)} (${signo(dv)} %)${g ? ` · ${esc(g.n)}: ${fmtDec(g.precio, 2)}/${esc(g.und)}` : ""}</div></div>`;
+    });
+    setHTML("sim-live-kpis", `<div class="sim-day">${d ? `Día <b>${d}</b> de ${DIAS_SIM}` : "Mes simulado sin iniciar"}</div>${kp.join("")}`);
+    setHTML("sim-feed", SIM.feed.slice(-6).reverse().map(t => `<li>${t}</li>`).join("") || `<li class="muted">Aquí aparecerán los cambios de precio del mercado.</li>`);
+    const ch = SIM.ch.live;
+    if (ch) {
+      PK.forEach((pk, i) => {
+        ch.data.datasets[i].data = SIM.serie[pk].slice();
+        ch.data.datasets[i].label = `${P.productos[pk].tipo}: utilidad acumulada`;
+        const plan = planProducto(pk).util;
+        ch.data.datasets[i + 2].data = ch.data.labels.map((_, k) => (plan * (k + 1)) / DIAS_SIM);
+      });
+      ch.update("none");
+    }
+  }
+
+  function simUpdate() {
+    if (!document.getElementById("sim-root")) return;
+    const P = SIM.st, live = SIM.dia > 0, r = {};
+    PK.forEach(pk => {
+      const p = P.productos[pk], cr = costoReceta(p);
+      p.ingredientes.forEach((g, i) => setHTML(`sim-ic-${pk}-${i}`, fmtDec(costoIng(g), 2)));
+      setHTML(`sim-cr-${pk}`, `<b>${fmtDec(cr, 2)}</b>`);
+      if (live && p.ingredientes[p.volatil]) {
+        const el = document.querySelector(`#sim-root input[data-prod="${pk}"][data-ing="${p.volatil}"][data-f="precio"]`);
+        if (el && document.activeElement !== el) el.value = p.ingredientes[p.volatil].precio;
+      }
+      const cp = p.precioNeto ? (cr / p.precioNeto) * 100 : 0, sug = p.metaCosto ? cr / (p.metaCosto / 100) : 0, mc = p.precioNeto - cr;
+      const ok = cp <= p.metaCosto;
+      setHTML(`sim-kpis-${pk}`, `
+        <div><span>Costo por porción</span><b>${fmtDec(cr, 2)}</b></div>
+        <div><span>${pk === "plato" ? "Food" : "Beverage"} cost</span><b class="${ok ? "pos" : "neg"}">${fmtPct(cp)}</b><small>meta ${fmtPct(p.metaCosto, 0)}</small></div>
+        <div><span>Margen de contribución</span><b>${fmtDec(mc, 2)}</b><small>por unidad</small></div>
+        <div><span>Precio sugerido</span><b>${fmtDec(sug, 2)}</b><small>${frac("Costo", "Meta %")}</small></div>`);
+      const imp = (p.precioNeto * P.impuesto) / 100, serv = (p.precioNeto * P.servicio) / 100, total = p.precioNeto + imp + serv;
+      setHTML(`sim-client-${pk}`, `<div class="t">Precio al cliente final (carta)</div>
+        ${eq("Precio al cliente", "Neto + Impuesto + Servicio", `${fmtDec(p.precioNeto, 2)} + ${fmtDec(imp, 2)} + ${fmtDec(serv, 2)}`, resPill(fmtDec(total, 2)))}
+        <div class="split3"><span><i class="d" style="background:${C().act}"></i>Hotel: ${fmtPct(total ? (p.precioNeto / total) * 100 : 0)}</span><span><i class="d" style="background:${C().ppto}"></i>Impuesto (Estado): ${fmtPct(total ? (imp / total) * 100 : 0)}</span><span><i class="d" style="background:${C().s4}"></i>Servicio (personal): ${fmtPct(total ? (serv / total) * 100 : 0)}</span></div>`);
+      r[pk] = live && SIM.acum[pk] ? SIM.acum[pk] : planProducto(pk);
+    });
+    setHTML("sim-pl-sub", live ? `Resultado acumulado de la simulación en tiempo real · día ${SIM.dia} de ${DIAS_SIM}` : `Plan mensual: ${fmtInt(r.plato.unidades)} platos y ${fmtInt(r.bebida.unidades)} bebidas · incluye los desvíos del punto 4`);
+    setHTML("sim-pl", simPnlTabla(r));
+    PK.forEach(pk => simWaterfall(pk, r[pk]));
+    simSens();
+    simLive();
+  }
+
+  function simTick() {
+    if (SIM.dia >= DIAS_SIM) { simPause(); return; }
+    SIM.dia += 1;
+    const finde = [6, 0].includes(SIM.dia % 7);
+    PK.forEach(pk => {
+      const p = SIM.st.productos[pk], g = p.ingredientes[p.volatil];
+      if (g) {
+        const base = SIM.base[pk] ?? g.precio, antes = g.precio;
+        g.precio = Math.round(Math.min(base * 1.3, Math.max(base * 0.8, antes * (1 + gauss() * 0.025))) * 100) / 100;
+        const cambio = antes ? ((g.precio - antes) / antes) * 100 : 0;
+        if (Math.abs(cambio) >= 2.5) SIM.feed.push(`Día ${SIM.dia}: <b>${esc(g.n)}</b> ${cambio > 0 ? "sube" : "baja"} a ${fmtDec(g.precio, 2)}/${esc(g.und)} <span class="${cambio > 0 ? "neg" : "pos"}">(${signo(cambio)} %)</span>`);
+      }
+      const u = Math.max(0, Math.round((p.unidadesMes / DIAS_SIM) * (finde ? 1.3 : 0.88) * (0.8 + Math.random() * 0.4)));
+      SIM.acum[pk] = sumarPnl(SIM.acum[pk], pnlProducto(p, u, costoReceta(p), SIM.sens));
+      SIM.serie[pk].push(SIM.acum[pk].util);
+    });
+    if (SIM.dia === DIAS_SIM) { SIM.feed.push(`<b>Fin del mes simulado.</b> Compara la utilidad real con el plan y revisa qué la movió.`); simPause(); }
+    simUpdate();
+  }
+  function simPause() { if (SIM.timer) { clearInterval(SIM.timer); SIM.timer = null; } simLive(); }
+  function simPlay() {
+    if (SIM.timer) { simPause(); return; }
+    if (SIM.dia >= DIAS_SIM) simReset();
+    if (SIM.dia === 0) PK.forEach(pk => { const p = SIM.st.productos[pk], g = p.ingredientes[p.volatil]; SIM.base[pk] = g ? g.precio : null; });
+    SIM.timer = setInterval(simTick, 900);
+    simLive();
+  }
+  function simReset() {
+    simPause();
+    PK.forEach(pk => { const p = SIM.st.productos[pk], g = p.ingredientes[p.volatil]; if (g && SIM.base[pk] != null && SIM.dia > 0) g.precio = SIM.base[pk]; });
+    SIM.dia = 0; SIM.acum = {}; SIM.serie = { plato: [], bebida: [] }; SIM.feed = []; SIM.base = {};
+    PK.forEach(pk => setHTML(`sim-rec-${pk}`, recipeRows(pk)));
+    simUpdate();
+  }
+
+  function chartsSimulacion() {
+    const root = document.getElementById("sim-root"); if (!root) return;
+    const c = C();
+    root.addEventListener("input", (e) => {
+      const t = e.target, P = SIM.st;
+      if (t.dataset.sens) { SIM.sens[t.dataset.sens] = num(t.value); setHTML(`sim-sv-${t.dataset.sens}`, `${SIM.sens[t.dataset.sens]} %`); }
+      else if (t.dataset.par) P[t.dataset.par] = num(t.value);
+      else if (t.dataset.prod) {
+        const p = P.productos[t.dataset.prod];
+        if (t.dataset.ing !== undefined) { const g = p.ingredientes[Number(t.dataset.ing)]; g[t.dataset.f] = ["n", "und"].includes(t.dataset.f) ? t.value : num(t.value); }
+        else p[t.dataset.f] = t.dataset.f === "nombre" ? t.value : num(t.value);
+      } else return;
+      simUpdate();
+    });
+    root.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-sim]"); if (!b) return;
+      const a = b.dataset.sim, pk = b.dataset.prod;
+      if (a === "play") simPlay();
+      if (a === "reset") simReset();
+      if (a === "restore") { simPause(); SIM.st = null; SIM.sens = { costo: 0, sobre: 0, merma: 0 }; SIM.dia = 0; SIM.acum = {}; SIM.serie = { plato: [], bebida: [] }; SIM.feed = []; SIM.base = {}; render(); return; }
+      if (a === "add") { SIM.st.productos[pk].ingredientes.push({ n: "Nuevo insumo", cant: 0, und: "kg", precio: 0, merma: 0 }); setHTML(`sim-rec-${pk}`, recipeRows(pk)); simUpdate(); }
+      if (a === "del") {
+        const p = SIM.st.productos[pk], i = Number(b.dataset.i);
+        p.ingredientes.splice(i, 1);
+        if (i === p.volatil) p.volatil = -1; else if (i < p.volatil) p.volatil -= 1;
+        setHTML(`sim-rec-${pk}`, recipeRows(pk)); simUpdate();
+      }
+    });
+    const wf = (id) => { mkChart(id, { type: "bar",
+      data: { labels: ["Precio", "Insumos", "Planilla", "Otros", "No distrib.", "Utilidad"], datasets: [{ label: "US$", data: [], backgroundColor: [], borderSkipped: false, categoryPercentage: 0.7, barPercentage: 0.9 }] },
+      options: { layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, valueLabels: { fmt: (x) => fmtDec(x, 2), minGap: 40 },
+        tooltip: { callbacks: { label: (x) => { const [a, b] = x.raw; return ` ${fmtDec(b - a, 2)} por unidad`; } } } },
+        scales: { x: axisX({ ticks: { maxRotation: 0, autoSkip: false } }), y: axisY((x) => fmtDec(x, 0), { beginAtZero: true }) } } });
+      return charts[charts.length - 1]; };
+    SIM.ch.plato = wf("ch-sim-w-plato");
+    SIM.ch.bebida = wf("ch-sim-w-bebida");
+    mkChart("ch-sim-sens", { type: "line",
+      data: { labels: [-10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40].map(x => `${x > 0 ? "+" : ""}${x} %`), datasets: [
+        { label: "Plato", data: [], borderColor: c.act, backgroundColor: c.act }, { label: "Bebida", data: [], borderColor: c.aa, backgroundColor: c.aa }] },
+      options: { scales: { x: axisX({ title: { display: true, text: "Variación del precio de los insumos" } }), y: axisY(fmtMoneyC) }, plugins: { tooltip: tipFmt(fmtMoney), legend: LEGEND_IDX } } });
+    SIM.ch.sens = charts[charts.length - 1];
+    mkChart("ch-sim-live", { type: "line",
+      data: { labels: Array.from({ length: DIAS_SIM }, (_, i) => `D${i + 1}`), datasets: [
+        { label: "Plato", data: [], borderColor: c.act, backgroundColor: c.act, pointRadius: 0 },
+        { label: "Bebida", data: [], borderColor: c.aa, backgroundColor: c.aa, pointRadius: 0 },
+        { label: "Plan plato", data: [], borderColor: c.act, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5 },
+        { label: "Plan bebida", data: [], borderColor: c.aa, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5 }] },
+      options: { animation: false, scales: { x: axisX({ ticks: { maxTicksLimit: 10, maxRotation: 0 } }), y: axisY(fmtMoneyC, { beginAtZero: true }) }, plugins: { tooltip: tipFmt(fmtMoney), legend: LEGEND_IDX } } });
+    SIM.ch.live = charts[charts.length - 1];
+    viewCleanup = simPause;
+    simUpdate();
+  }
+
   /* ---------------- Registro de vistas ---------------- */
   const VIEWS = {
     portada: { html: viewPortada, charts: null, filtros: false },
@@ -982,7 +1445,9 @@
     gop: { html: viewGOP, charts: chartsGOP, filtros: true },
     ebitda: { html: viewEBITDA, charts: chartsEBITDA, filtros: true },
     gsi: { html: viewGSI, charts: chartsGSI, filtros: "outlet" },
-    seguridad: { html: viewSeguridad, charts: chartsSeguridad, filtros: false }
+    seguridad: { html: viewSeguridad, charts: chartsSeguridad, filtros: false },
+    semaforo: { html: viewSemaforo, charts: chartsSemaforo, filtros: true },
+    simulacion: { html: viewSimulacion, charts: chartsSimulacion, filtros: false }
   };
 
   /* ---------------- Shell: sidebar + topbar ---------------- */
@@ -991,7 +1456,7 @@
     let navHtml = "", lastGroup;
     NAV.forEach(n => {
       if (n.group && n.group !== lastGroup) { navHtml += `<div class="nav-group">${esc(n.group)}</div>`; lastGroup = n.group; }
-      navHtml += `<button data-go="${n.id}" class="${n.id === state.view ? "active" : ""}">${n.num ? `<span class="num">${n.num}</span>` : `<span class="num">·</span>`}<span>${esc(n.label)}</span></button>`;
+      navHtml += `<button data-go="${n.id}" class="${n.id === state.view ? "active" : ""} ${n.cls || ""}">${n.num ? `<span class="num">${n.num}</span>` : `<span class="num">·</span>`}<span>${esc(n.label)}</span></button>`;
     });
     app.innerHTML = `
       <aside class="sidebar">
@@ -1028,6 +1493,10 @@
       if (act.dataset.act === "menu") toggleNav();
       if (act.dataset.act === "logout") window.dispatchEvent(new Event("fb:logout"));
     });
+    // Tras un clic con el mouse se quita el foco del botón, para que Enter pase de hoja y no lo vuelva a pulsar
+    app.addEventListener("click", (e) => {
+      if (e.detail > 0 && e.target.closest("button, summary")) setTimeout(() => document.activeElement?.blur?.(), 0);
+    });
     app.addEventListener("change", (e) => {
       if (e.target.id === "sel-outlet") { state.outlet = e.target.value; render(); }
       if (e.target.id === "sel-mes") { state.mes = e.target.value; render(); }
@@ -1046,23 +1515,24 @@
     const escSel = `<div class="control scen" role="group" aria-label="Escenario de prueba"><label>Escenario</label>
       ${["real", "eficiente", "deficiente"].map(id => `<button type="button" data-esc="${id}" class="${id === ESCENARIO_ACTIVO ? `on ${id}` : ""}" aria-pressed="${id === ESCENARIO_ACTIVO}">${ESCENARIOS[id].nombre}</button>`).join("")}</div>`;
     document.getElementById("controls").innerHTML = `
-      ${state.view !== "portada" ? escSel : ""}
+      ${!["portada", "simulacion"].includes(state.view) ? escSel : ""}
       ${v.filtros === true || v.filtros === "outlet" ? outletSel : ""}
       ${v.filtros === true ? mesSel : ""}
-      <button class="icon-btn" data-act="prev" title="Anterior (←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
-      <button class="icon-btn" data-act="next" title="Siguiente (→)" ${i === ORDER.length - 1 ? "disabled" : ""}>&#8594;</button>
+      <button class="icon-btn" data-act="prev" title="Anterior (Shift + Enter o ←)" ${i === 0 ? "disabled" : ""}>&#8592;</button>
+      <button class="icon-btn" data-act="next" title="Siguiente (Enter o →)" ${i === ORDER.length - 1 ? "disabled" : ""}>&#8594;</button>
       <button class="icon-btn" data-act="full" title="Modo presentación (F)">&#x26F6;</button>`;
     const n = NAV[i];
     document.getElementById("crumb").innerHTML = `${esc(CONFIG.titulo)} &nbsp;/&nbsp; <b>${esc(n.label)}</b> &nbsp;·&nbsp; ${i + 1} de ${ORDER.length}`;
   }
 
   function render() {
+    if (viewCleanup) { viewCleanup(); viewCleanup = null; }
     destroyCharts();
     const v = VIEWS[state.view] || VIEWS.portada;
     document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.go === state.view));
     renderControls();
     const content = document.getElementById("content");
-    content.innerHTML = (state.view !== "portada" ? bannerEscenario() : "") + v.html();
+    content.innerHTML = (!["portada", "simulacion"].includes(state.view) ? bannerEscenario() : "") + v.html();
     content.scrollTop = 0; window.scrollTo({ top: 0 });
     if (v.charts) requestAnimationFrame(() => v.charts());
     document.title = `${NAV[ORDER.indexOf(state.view)].label} · ${CONFIG.titulo}`;
@@ -1101,8 +1571,14 @@
     window.addEventListener("popstate", () => { const h = (location.hash || "").replace("#/", ""); state.view = VIEWS[h] ? h : "portada"; render(); });
     window.addEventListener("keydown", (e) => {
       if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // no interferir con atajos del navegador (Ctrl+F, etc.)
       if (e.key === "ArrowRight" || e.key === "PageDown") step(1);
       if (e.key === "ArrowLeft" || e.key === "PageUp") step(-1);
+      // Enter: siguiente hoja · Shift + Enter: hoja anterior (sin interferir con botones o enlaces enfocados con Tab)
+      if (e.key === "Enter" && !e.altKey && !e.ctrlKey && !e.metaKey && !["BUTTON", "A", "SUMMARY"].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        step(e.shiftKey ? -1 : 1);
+      }
       if (e.key.toLowerCase() === "f") toggleFull();
       if (e.key.toLowerCase() === "m") toggleNav();
       if (e.key === "Home") navigate("portada");
@@ -1115,6 +1591,7 @@
       if (!started) { started = true; init(); }
       const who = document.getElementById("user-email");
       if (who) { who.textContent = user?.email || ""; who.title = user?.email || ""; }
+      if (window.marcaDeAgua) window.marcaDeAgua(user?.email);
     }
   };
 })();

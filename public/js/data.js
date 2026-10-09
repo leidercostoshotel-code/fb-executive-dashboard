@@ -21,13 +21,13 @@ const CONFIG = {
 
 /* ---------- Outlets (puntos de venta) ---------- */
 const OUTLETS = [
-  { id: "rest", nombre: "Restaurante Principal", corto: "Restaurante", ventaBase: 185000, check: 42, costoPct: 0.31, planillaPct: 0.27, otrosPct: 0.09,
+  { id: "rest", nombre: "Restaurante Principal", corto: "Restaurante", ventaBase: 185000, check: 42, costoPct: 0.31, mixAlim: 0.70, bebPct: 0.22, planillaPct: 0.27, otrosPct: 0.09,
     canales: { "Salón": 0.62, "Terraza": 0.18, "Delivery": 0.12, "Take away": 0.08 } },
-  { id: "bar",  nombre: "Bar & Lounge",          corto: "Bar",         ventaBase: 72000,  check: 28, costoPct: 0.24, planillaPct: 0.25, otrosPct: 0.10,
+  { id: "bar",  nombre: "Bar & Lounge",          corto: "Bar",         ventaBase: 72000,  check: 28, costoPct: 0.24, mixAlim: 0.25, bebPct: 0.20, planillaPct: 0.25, otrosPct: 0.10,
     canales: { "Barra": 0.48, "Mesas": 0.37, "Happy hour": 0.15 } },
-  { id: "rs",   nombre: "Room Service",          corto: "Room Service", ventaBase: 48000,  check: 35, costoPct: 0.33, planillaPct: 0.30, otrosPct: 0.08,
+  { id: "rs",   nombre: "Room Service",          corto: "Room Service", ventaBase: 48000,  check: 35, costoPct: 0.33, mixAlim: 0.75, bebPct: 0.24, planillaPct: 0.30, otrosPct: 0.08,
     canales: { "Desayuno en habitación": 0.44, "Cena": 0.38, "Minibar": 0.18 } },
-  { id: "banq", nombre: "Banquetes & Eventos",   corto: "Banquetes",   ventaBase: 130000, check: 65, costoPct: 0.29, planillaPct: 0.22, otrosPct: 0.11,
+  { id: "banq", nombre: "Banquetes & Eventos",   corto: "Banquetes",   ventaBase: 130000, check: 65, costoPct: 0.29, mixAlim: 0.72, bebPct: 0.21, planillaPct: 0.22, otrosPct: 0.11,
     canales: { "Corporativo": 0.52, "Social": 0.33, "Coffee breaks": 0.15 } }
 ];
 
@@ -108,8 +108,22 @@ function construirSerie(outlet, e = ESCENARIOS.real) {
     const ndAct = Math.round(ventaAct * (0.058 + noise(0.004) + e.nd));
     const ndAA = Math.round(ventaAA * 0.064);
 
+    // Alimentos y bebidas por separado (sin números aleatorios: no altera el resto de la serie).
+    // mixAlim = participación de alimentos en la venta; bebPct = costo de bebidas sobre su venta.
+    const separar = (venta, costo, bebPct) => {
+      const vA = Math.round(venta * outlet.mixAlim), vB = venta - vA, cB = Math.round(vB * bebPct);
+      return { vA, vB, cA: costo - cB, cB };
+    };
+    const sPpto = separar(ventaPpto, costoPpto, outlet.bebPct);
+    const sAA = separar(ventaAA, costoAA, outlet.bebPct + 0.01);
+    const sAct = separar(ventaAct, costoAct, outlet.bebPct - 0.004 + e.costo * 0.6);
+
     return {
       ventas: { act: ventaAct, ppto: ventaPpto, aa: ventaAA },
+      ventasAlim: { act: sAct.vA, ppto: sPpto.vA, aa: sAA.vA },
+      ventasBeb: { act: sAct.vB, ppto: sPpto.vB, aa: sAA.vB },
+      costoAlim: { act: sAct.cA, ppto: sPpto.cA, aa: sAA.cA },
+      costoBeb: { act: sAct.cB, ppto: sPpto.cB, aa: sAA.cB },
       covers: { act: coversAct, ppto: coversPpto, aa: coversAA },
       check: { act: checkAct, ppto: checkPpto, aa: checkAA },
       costo: { act: costoAct, ppto: costoPpto, aa: costoAA },
@@ -206,6 +220,65 @@ const SEGURIDAD = {
   }
 };
 
+/* ---------- Semáforo de rentabilidad: rangos de referencia ----------
+   Orientativos para A&B de hotel; ajústalos a la realidad de tu operación.
+   tipo "max": verde si el valor ≤ verde, ámbar si ≤ ambar, rojo si es mayor.
+   tipo "min": verde si el valor ≥ verde, ámbar si ≥ ambar, rojo si es menor. */
+const REFERENCIAS = {
+  foodCost:     { tipo: "max", verde: 32, ambar: 35, unidad: "%" },
+  bevCost:      { tipo: "max", verde: 24, ambar: 27, unidad: "%" },
+  costoAB:      { tipo: "max", verde: 30, ambar: 33, unidad: "%" },
+  planilla:     { tipo: "max", verde: 30, ambar: 34, unidad: "%" },
+  primeCost:    { tipo: "max", verde: 60, ambar: 65, unidad: "%" },
+  margenGOP:    { tipo: "min", verde: 30, ambar: 25, unidad: "%" },
+  margenEBITDA: { tipo: "min", verde: 25, ambar: 20, unidad: "%" },
+  ventasPpto:   { tipo: "min", verde: 100, ambar: 97, unidad: "%" },
+  merma:        { tipo: "max", verde: 2.0, ambar: 2.5, unidad: "%" },
+  gsi:          { tipo: "min", verde: 8.6, ambar: 8.3, unidad: "pts" },
+  inocuidad:    { tipo: "min", verde: 95, ambar: 90, unidad: "%" }
+};
+
+/* ---------- Simulación: receta, precio y utilidad por producto (hotel 5 estrellas) ----------
+   cant: cantidad por receta · precio: US$ por unidad de compra (kg, l, u) · merma: % que se pierde al limpiar o preparar.
+   volatil: índice del insumo cuyo precio de mercado cambia día a día en la simulación en tiempo real.
+   impuesto y servicio: ajústalos a la legislación de tu país (se suman al precio neto que paga el cliente). */
+const SIMULACION = {
+  impuesto: 18, servicio: 10,
+  planillaPct: 25, otrosPct: 9, ndPct: 6,
+  productos: {
+    plato: {
+      tipo: "Plato", unidad: "platos", nombre: "Lomo saltado de lomo fino", porciones: 1,
+      descripcion: "Receta estándar de un plato de fondo para la carta del restaurante de un hotel 5 estrellas.",
+      precioNeto: 22, metaCosto: 30, unidadesMes: 1200, volatil: 0,
+      ingredientes: [
+        { n: "Lomo fino de res", cant: 0.200, und: "kg", precio: 18.50, merma: 10 },
+        { n: "Papa amarilla (fritas)", cant: 0.200, und: "kg", precio: 1.30, merma: 20 },
+        { n: "Arroz extra", cant: 0.090, und: "kg", precio: 1.60, merma: 0 },
+        { n: "Cebolla roja", cant: 0.080, und: "kg", precio: 1.20, merma: 10 },
+        { n: "Tomate", cant: 0.080, und: "kg", precio: 1.40, merma: 8 },
+        { n: "Ají amarillo", cant: 0.015, und: "kg", precio: 4.00, merma: 15 },
+        { n: "Sillao y vinagre", cant: 0.020, und: "l", precio: 3.50, merma: 0 },
+        { n: "Aceite vegetal", cant: 0.040, und: "l", precio: 2.80, merma: 0 },
+        { n: "Culantro, ajo y especias", cant: 1, und: "porción", precio: 0.25, merma: 0 },
+        { n: "Microhierbas para el emplatado", cant: 1, und: "porción", precio: 0.30, merma: 0 }
+      ]
+    },
+    bebida: {
+      tipo: "Bebida", unidad: "bebidas", nombre: "Pisco sour clásico", porciones: 1,
+      descripcion: "Coctel insignia del bar, preparado con medidas estándar (jigger) en cada servicio.",
+      precioNeto: 14, metaCosto: 22, unidadesMes: 2500, volatil: 0,
+      ingredientes: [
+        { n: "Pisco quebranta", cant: 0.090, und: "l", precio: 29.30, merma: 2 },
+        { n: "Limón (jugo)", cant: 0.030, und: "l", precio: 3.00, merma: 40 },
+        { n: "Jarabe de goma", cant: 0.020, und: "l", precio: 2.00, merma: 0 },
+        { n: "Clara de huevo", cant: 1, und: "u", precio: 0.15, merma: 0 },
+        { n: "Amargo de angostura", cant: 0.001, und: "l", precio: 40.00, merma: 0 },
+        { n: "Hielo", cant: 0.150, und: "kg", precio: 0.20, merma: 0 }
+      ]
+    }
+  }
+};
+
 /* ---------- Texto de las secciones (tomado de la presentación original) ---------- */
 const SECCIONES = {
   ventas: { num: "01", titulo: "Ventas", intro: "Medir el ingreso es el punto de partida; entender qué lo impulsa es lo que permite gestionarlo.",
@@ -223,6 +296,12 @@ const SECCIONES = {
   gsi: { seccion: "Experiencia del cliente", titulo: "Resultados de GSI", intro: "La encuesta de satisfacción convierte la percepción del cliente en oportunidades concretas de mejora.",
     puntos: ["Calidad de la comida, ambiente y decoración", "Servicio y relación calidad–precio", "Revisar comentarios y definir acciones correctivas"], formula: "GSI = promedio de las calificaciones válidas",
     nota: "Medir la tendencia por periodo y comparar por local o área" },
+  simulacion: { seccion: "Simulación", titulo: "De la receta a la utilidad", intro: "Crea la receta de un plato y de una bebida, fija su precio para un hotel 5 estrellas y sigue cada dólar desde la venta hasta la utilidad del producto. Datos simulados con fines didácticos.",
+    puntos: ["Receta estándar y costo por porción", "Precio de venta y precio al cliente final", "Estado de resultados por producto y sensibilidad de los costos"], formula: "UTILIDAD = VENTAS − COSTO − GASTOS",
+    nota: "Edita cualquier dato: todo se recalcula al instante" },
+  semaforo: { seccion: "Diagnóstico", titulo: "Semáforo de rentabilidad", intro: "Los indicadores que definen si la operación es rentable, comparados con rangos de referencia sanos para A&B de hotel.",
+    puntos: ["Costos: food cost, beverage cost y prime cost", "Márgenes: GOP y EBITDA", "Palancas: ventas, mermas, satisfacción e inocuidad"], formula: "PRIME COST = (costo A&B + planilla) ÷ ventas × 100",
+    nota: "Verde: sano · ámbar: vigilar · rojo: actuar" },
   seguridad: { seccion: "Responsabilidad operativa", titulo: "Seguridad Alimentaria y Sostenibilidad", intro: "La inocuidad protege al cliente; la sostenibilidad reduce desperdicios y el impacto ambiental.",
     puntos: ["Control de temperaturas, higiene y contaminación cruzada", "Trazabilidad, almacenamiento y cumplimiento de procedimientos", "Mermas, consumo de agua y energía, y segregación de residuos"], formula: "SEGUIMIENTO = controles cumplidos + acciones correctivas",
     nota: "Revisar resultados, responsables, incidencias y avances por periodo" }

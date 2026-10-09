@@ -12,7 +12,7 @@ fb-executive-dashboard/
 └── public/
     ├── index.html         # Solo carga CSS, Chart.js y los scripts
     ├── favicon.svg        # Ícono de la pestaña
-    ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive e impresión
+    ├── css/styles.css     # Estilo ejecutivo (navy + dorado), responsive y protección de impresión
     ├── css/login.css      # Pantalla de acceso y panel animado
     └── js/
         ├── data.js        # Datos simulados: outlets, meses, GSI, seguridad, textos
@@ -37,14 +37,24 @@ El dashboard solo se muestra después de iniciar sesión con **Firebase Authenti
 3. 01 Ventas · 02 Covers · 03 Average Check · 04 F&B Cost · 05 GOP · 06 EBITDA
 4. Resultados de GSI (experiencia del cliente)
 5. Seguridad Alimentaria y Sostenibilidad
+7. **Simulación** (botón dorado al final del menú): receta estándar de un plato y una bebida para un hotel 5 estrellas (insumos, cantidades, precios de compra y mermas editables), precio de venta neto, precio sugerido según la meta de costo y precio al cliente final con impuesto y servicio; simulación en tiempo real de un mes (ventas diarias y precio de mercado del insumo principal); estado de resultados por producto de la venta a la utilidad, cascada por unidad y panel "¿Por qué cuidar los costos?" (alza de insumos, sobreporción y mermas). Recetas y parámetros base en `SIMULACION` dentro de `data.js`.
+6. Semáforo de rentabilidad: food cost, beverage cost, prime cost, márgenes, mermas, GSI e inocuidad frente a rangos de referencia (editables en `REFERENCIAS`, `data.js`)
+
+La sección 04 incluye **Food Cost % y Beverage Cost %** por separado, con su fórmula, sustitución y relación con el costo A&B total (promedio ponderado por el mix de venta).
 
 Cada KPI muestra **Actual | Presupuesto | Año anterior**, su fórmula, gráficos mensuales, lectura ejecutiva y tabla de detalle.
 
 Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula en notación matemática y la definición de cada variable, (2) la sustitución con los datos reales del outlet y periodo seleccionados para Actual, Presupuesto y Año anterior, (3) las variaciones con su fórmula (% o puntos porcentuales), una nota metodológica y el cálculo detallado (mes a mes, por outlet o estado de resultados Ventas → GOP → EBITDA).
 
+## Confidencialidad
+
+`public/js/proteccion.js` bloquea las vías habituales de impresión y descarga: Ctrl/Cmd + P, S y U, el menú contextual (clic derecho), copiar/cortar y arrastrar (salvo en los campos editables). La impresión desde el menú del navegador o "Guardar como PDF" solo muestra un aviso de confidencialidad. Además, se superpone una marca de agua tenue con el correo del usuario conectado y la fecha.
+
+Ninguna página web puede impedir al 100 % una captura de pantalla o el uso de las herramientas de desarrollador; la marca de agua permite identificar de quién proviene cualquier copia.
+
 ## Uso durante la exposición
 
-- Flechas `←` `→` (o PageUp/PageDown) para avanzar entre secciones; `Home` vuelve a la portada.
+- `Enter` o `→` (o PageDown) avanza a la siguiente sección; `Shift + Enter` o `←` (o PageUp) vuelve; `Home` vuelve a la portada. Funciona también en pantalla completa.
 - Selector **Escenario** (Real · Eficiente · Deficiente): simula los resultados "Actual" de una empresa eficiente o deficiente con el mismo presupuesto y año anterior; todo el dashboard (KPIs, fórmulas, gráficos, GSI y seguridad) se recalcula. El Resumen ejecutivo incluye el comparativo lado a lado. Los supuestos de cada escenario están en `ESCENARIOS` dentro de `data.js`.
 - `M` o el botón ☰ oculta/muestra el menú lateral para usar todo el ancho de la pantalla (se recuerda en el navegador).
 - `F` o el botón ⛶ activa el modo presentación (pantalla completa).
