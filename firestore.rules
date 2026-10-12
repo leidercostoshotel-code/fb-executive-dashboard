@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Control de accesos de prueba (colección "accesos", un documento por usuario: accesos/{uid}).
+// - Cada usuario solo puede leer su propio documento.
+// - Solo puede crearlo con usados = 1 y sumarle de a 1 (no puede reiniciarlo ni borrarlo).
+// - Los campos "limite" e "ilimitado" solo los cambia el administrador desde la consola de Firebase.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /accesos/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'usados', 'ultimo'])
+        && request.resource.data.usados == 1
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.ultimo == request.time;
+
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usados', 'ultimo'])
+        && request.resource.data.usados == resource.data.usados + 1
+        && request.resource.data.ultimo == request.time;
+
+      allow delete: if false;
+    }
+
+    // Todo lo demás está cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

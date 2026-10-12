@@ -1702,10 +1702,14 @@
   // El dashboard arranca cuando auth.js confirma una sesión iniciada
   let started = false;
   window.FBDashboard = {
-    start(user) {
+    start(user, acc) {
       if (!started) { started = true; init(); }
       const who = document.getElementById("user-email");
       if (who) { who.textContent = user?.email || ""; who.title = user?.email || ""; }
+      const box = document.querySelector(".user-box");
+      if (box && acc && acc.limite != null && !document.getElementById("user-plan")) {
+        box.insertAdjacentHTML("afterend", `<div id="user-plan" class="user-plan" title="Cuenta de prueba">Acceso de prueba · ${acc.usados} de ${acc.limite}</div>`);
+      }
       if (window.marcaDeAgua) window.marcaDeAgua(user?.email);
     }
   };

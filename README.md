@@ -46,6 +46,23 @@ Cada KPI muestra **Actual | Presupuesto | Año anterior**, su fórmula, gráfico
 
 Cada indicador incluye además un bloque **"Cómo se calcula"**: (1) la fórmula en notación matemática y la definición de cada variable, (2) la sustitución con los datos reales del outlet y periodo seleccionados para Actual, Presupuesto y Año anterior, (3) las variaciones con su fórmula (% o puntos porcentuales), una nota metodológica y el cálculo detallado (mes a mes, por outlet o estado de resultados Ventas → GOP → EBITDA).
 
+## Cuentas de prueba e inactividad
+
+Se configuran en `CONFIG.acceso` dentro de `public/js/data.js`:
+
+- `cuentasPrueba`: correo → número de accesos de cortesía (por defecto `prueba@leitime.com: 2`). Cada vez que la cuenta abre el dashboard en una pestaña o ventana nueva cuenta como un acceso; recargar la misma pestaña no cuenta. Superado el límite, se muestra la pantalla "Tu acceso de cortesía ha concluido" con el botón de contacto (`contacto`).
+- `inactividadMin`: minutos sin actividad antes de cerrar la sesión (5 por defecto; 0 lo desactiva). Un minuto antes aparece un aviso con "Seguir conectado".
+
+El conteo se guarda en **Firestore** (colección `accesos`, un documento por usuario). Las reglas de `firestore.rules` solo permiten sumar de a 1: el usuario no puede reiniciar su contador ni darse más accesos.
+
+**Configuración inicial (una sola vez):** en la consola de Firebase → Build → **Firestore Database** → *Crear base de datos* (modo producción). Luego publica reglas y sitio con:
+
+```bash
+firebase deploy --only firestore:rules,hosting
+```
+
+**Dar más accesos a una cuenta:** Firestore → `accesos` → documento de la cuenta → agrega el campo `limite` (número, p. ej. 10) o `ilimitado` (booleano `true`). No hace falta volver a publicar.
+
 ## Confidencialidad
 
 `public/js/proteccion.js` bloquea las vías habituales de impresión y descarga: Ctrl/Cmd + P, S y U, el menú contextual (clic derecho), copiar/cortar y arrastrar (salvo en los campos editables). La impresión desde el menú del navegador o "Guardar como PDF" solo muestra un aviso de confidencialidad. Además, se superpone una marca de agua tenue con el correo del usuario conectado y la fecha.
