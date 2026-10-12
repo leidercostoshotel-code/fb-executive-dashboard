@@ -250,6 +250,95 @@ const ERRORES = {
 };
 const errorTexto = (e) => ERRORES[e?.code] || "No se pudo iniciar sesión. Inténtalo de nuevo.";
 
+/* ---------------- Control de acceso: cuentas de prueba ---------------- */
+const ACC = (typeof CONFIG !== "undefined" && CONFIG.acceso) || {};
+const leerSesion = (k) => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+const guardarSesion = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
+
+/* Cuenta un acceso por cada sesión del navegador (pestaña o ventana nueva) y devuelve si puede entrar.
+   El conteo vive en Firestore (accesos/{uid}); si Firestore no responde, se usa un registro local. */
+async function verificarAcceso(user, app) {
+  const email = (user.email || "").toLowerCase();
+  const limiteConfig = (ACC.cuentasPrueba || {})[email];
+  const clave = `fb-acceso-${user.uid}`;
+  const yaContado = leerSesion(clave) === "1";
+  try {
+    const fs = await import(`${SDK}firebase-firestore.js`);
+    const db = fs.getFirestore(app), ref = fs.doc(db, "accesos", user.uid);
+    const snap = await fs.getDoc(ref);
+    let d = snap.exists() ? snap.data() : null;
+    if (d && d.ilimitado === true) return { permitido: true };
+    const limite = d && typeof d.limite === "number" ? d.limite : limiteConfig;
+    if (limite == null) return { permitido: true };
+    if (!yaContado) {
+      if (!d) { await fs.setDoc(ref, { email, usados: 1, ultimo: fs.serverTimestamp() }); d = { usados: 1 }; }
+      else { await fs.updateDoc(ref, { usados: fs.increment(1), ultimo: fs.serverTimestamp() }); d = { ...d, usados: (d.usados || 0) + 1 }; }
+      guardarSesion(clave, "1");
+    }
+    const usados = d.usados || 0;
+    return { permitido: usados <= limite, usados, limite };
+  } catch (e) {
+    console.warn("Control de accesos: Firestore no disponible, se usa el registro local.", e);
+    if (limiteConfig == null) return { permitido: true };
+    const k = `fb-accesos-${user.uid}`;
+    let usados = 0;
+    try { usados = Number(localStorage.getItem(k)) || 0; } catch (err) { /* sin almacenamiento */ }
+    if (!yaContado) {
+      usados += 1;
+      try { localStorage.setItem(k, String(usados)); } catch (err) { /* sin almacenamiento */ }
+      guardarSesion(clave, "1");
+    }
+    return { permitido: usados <= limiteConfig, usados, limite: limiteConfig };
+  }
+}
+
+/* Pantalla elegante cuando la prueba terminó */
+function mostrarBloqueo(user, acc, alSalir) {
+  const c = ACC.contacto || {};
+  document.body.classList.add("acc-bloqueado");
+  document.body.insertAdjacentHTML("beforeend", `
+  <div id="acc-bloqueo" role="dialog" aria-modal="true" aria-labelledby="acc-t">
+    <div class="acc-card">
+      <div class="acc-ico" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div class="acc-brand">${escHtml(empresa)}</div>
+      <h2 id="acc-t">Tu acceso de cortesía ha concluido</h2>
+      <p>Gracias por conocer <b>${escHtml(typeof CONFIG !== "undefined" ? CONFIG.titulo : "el dashboard")}</b>. La cuenta <b>${escHtml(user.email || "")}</b> ya utilizó los <b>${acc.limite} accesos</b> incluidos en su periodo de prueba.</p>
+      <p class="acc-sub">Para continuar utilizando la plataforma, solicita la activación de tu acceso al administrador.</p>
+      <div class="acc-actions">
+        ${c.url ? `<a class="acc-btn" href="${escHtml(c.url)}" target="_blank" rel="noopener">${escHtml(c.texto || "Contactar al administrador")}</a>` : ""}
+        <button type="button" class="acc-btn ghost" id="acc-salir">Cerrar sesión</button>
+      </div>
+      <div class="acc-foot">Acceso controlado · Información confidencial</div>
+    </div>
+  </div>`);
+  document.getElementById("acc-salir").addEventListener("click", alSalir);
+}
+
+/* Cierre de sesión por inactividad, con aviso previo de 60 segundos */
+function iniciarInactividad(alCerrar) {
+  const min = Number(ACC.inactividadMin) || 0;
+  if (min <= 0) return;
+  const LIM = min * 60000, AVISO = Math.min(60000, LIM / 2);
+  let ultima = Date.now(), aviso = null;
+  const marcar = () => { ultima = Date.now(); if (aviso) { aviso.remove(); aviso = null; } };
+  ["mousemove", "mousedown", "keydown", "wheel", "touchstart", "scroll"].forEach(ev => window.addEventListener(ev, () => { if (Date.now() - ultima > 1000 || aviso) marcar(); }, { passive: true, capture: true }));
+  const reloj = setInterval(() => {
+    const resto = LIM - (Date.now() - ultima);
+    if (resto <= 0) { clearInterval(reloj); alCerrar(); return; }
+    if (resto <= AVISO) {
+      if (!aviso) {
+        document.body.insertAdjacentHTML("beforeend", `<div id="aviso-inactividad" role="alertdialog" aria-live="assertive">
+          <div class="ai-txt"><b>¿Sigues ahí?</b> Por seguridad, tu sesión se cerrará en <span id="ai-seg"></span> por inactividad.</div>
+          <button type="button" class="ai-btn">Seguir conectado</button></div>`);
+        aviso = document.getElementById("aviso-inactividad");
+        aviso.querySelector(".ai-btn").addEventListener("click", marcar);
+      }
+      const seg = document.getElementById("ai-seg");
+      if (seg) seg.textContent = `${Math.ceil(resto / 1000)} s`;
+    }
+  }, 500);
+}
+
 /* ---------------- Arranque ---------------- */
 async function boot() {
   mount();
@@ -268,7 +357,7 @@ async function boot() {
   let fb;
   try {
     const [{ app }, authSdk] = await Promise.all([import("./firebase.js"), import(`${SDK}firebase-auth.js`)]);
-    fb = { ...authSdk, auth: authSdk.getAuth(app) };
+    fb = { ...authSdk, auth: authSdk.getAuth(app), app };
     fb.auth.languageCode = "es";
   } catch (e) {
     console.error(e);
@@ -278,16 +367,29 @@ async function boot() {
     return;
   }
 
-  fb.onAuthStateChanged(fb.auth, (user) => {
-    document.body.classList.add("auth-ready");
+  const salir = async (motivo) => {
+    if (motivo) guardarSesion("fb-logout-motivo", motivo);
+    try { await fb.signOut(fb.auth); } finally { location.reload(); }
+  };
+  let inactividadActiva = false;
+  fb.onAuthStateChanged(fb.auth, async (user) => {
     if (user) {
+      const acc = await verificarAcceso(user, fb.app);
       stopStage();
+      document.body.classList.add("auth-ready");
+      if (!acc.permitido) { mostrarBloqueo(user, acc, () => salir()); return; }
       document.body.classList.add("authed");
-      window.FBDashboard?.start(user);
+      window.FBDashboard?.start(user, acc);
+      if (!inactividadActiva) { inactividadActiva = true; iniciarInactividad(() => salir("inactividad")); }
     } else {
+      document.body.classList.add("auth-ready");
       document.body.classList.remove("authed");
     }
   });
+  if (leerSesion("fb-logout-motivo") === "inactividad") {
+    try { sessionStorage.removeItem("fb-logout-motivo"); } catch (e) { /* sin almacenamiento */ }
+    msg(`Por seguridad, tu sesión se cerró tras ${Number(ACC.inactividadMin) || 5} minutos de inactividad. Vuelve a ingresar para continuar.`, "ok");
+  }
 
   $("lg-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -315,10 +417,7 @@ async function boot() {
     }
   });
 
-  window.addEventListener("fb:logout", async () => {
-    await fb.signOut(fb.auth);
-    location.reload();
-  });
+  window.addEventListener("fb:logout", () => salir());
 }
 
 boot();

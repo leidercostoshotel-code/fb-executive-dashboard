@@ -16,7 +16,21 @@ const CONFIG = {
   anio: 2026,
   anioAnterior: 2025,
   meses: ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep"],
-  mesesLargo: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre"]
+  mesesLargo: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre"],
+
+  /* Control de acceso
+     - cuentasPrueba: correo → número de accesos de cortesía (cada vez que se abre el dashboard
+       en una pestaña o ventana nueva cuenta como un acceso; recargar la misma pestaña no cuenta).
+       El conteo se guarda en Firestore (colección "accesos"). Para dar más accesos a una cuenta,
+       en la consola de Firebase → Firestore → accesos → documento de esa cuenta, agrega el campo
+       "limite" (número) o "ilimitado" (true).
+     - contacto: a dónde se dirige al usuario cuando termina su prueba.
+     - inactividadMin: minutos sin actividad antes de cerrar la sesión (0 = desactivado). */
+  acceso: {
+    cuentasPrueba: { "prueba@leitime.com": 2 },
+    contacto: { texto: "Contactar al administrador", url: "https://leidertisnado.com/" },
+    inactividadMin: 5
+  }
 };
 
 /* ---------- Outlets (puntos de venta) ---------- */
